@@ -31,3 +31,22 @@ export type NotionTaskForm = {
   formats: string[];
   taskTypeId: string;
 };
+
+export type RequestTimings = {
+  generateBriefMs?: number;
+  createNotionTaskMs?: number;
+};
+
+export type RequestHistoryItem = {
+  id: string;
+  createdAt: string;
+  title: string;
+  vacancies: string;
+  systemPrompt: string;
+  brief: string;
+  notionForm?: NotionTaskForm;
+  taskUrl?: string;
+  taskFallbackUrl?: string;
+  taskId?: string;
+  timings: RequestTimings;
+};

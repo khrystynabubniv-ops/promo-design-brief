@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ExternalLink, Loader2, Plus } from 'lucide-react';
 import { FORMATS, PLATFORMS, PRIORITIES, TASK_TYPES } from '@/lib/constants';
 import type { ActionStatus, NotionTaskForm } from '@/lib/types';
 
@@ -9,6 +9,7 @@ type Step3NotionProps = {
   status: ActionStatus;
   notionUrl: string;
   onBack: () => void;
+  onCreateNew: () => void;
   onFormChange: (patch: Partial<NotionTaskForm>) => void;
   onSubmit: () => void;
 };
@@ -18,6 +19,7 @@ export function Step3Notion({
   status,
   notionUrl,
   onBack,
+  onCreateNew,
   onFormChange,
   onSubmit,
 }: Step3NotionProps) {
@@ -40,6 +42,48 @@ export function Step3Notion({
     }
 
     onSubmit();
+  }
+
+  if (notionUrl) {
+    return (
+      <section
+        aria-labelledby="task-created-title"
+        className="rounded-lg border border-neutral-200 bg-white p-8 text-center shadow-soft"
+        role="dialog"
+      >
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
+          <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
+        </div>
+        <h2 className="mt-5 text-2xl font-semibold tracking-normal text-neutral-950" id="task-created-title">
+          Задачу створено
+        </h2>
+
+        {status.message ? (
+          <p className="mt-2 text-sm font-medium text-neutral-500">{status.message}</p>
+        ) : null}
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <a
+            className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            href={notionUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            Відкрити в Notion
+          </a>
+
+          <button
+            className="inline-flex h-11 items-center gap-2 rounded-md border border-neutral-300 bg-white px-5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+            onClick={onCreateNew}
+            type="button"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Створити нову задачу
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (

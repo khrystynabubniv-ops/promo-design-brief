@@ -1,6 +1,10 @@
 import type { Priority, SelectOption, TaskType } from './types';
 
 export const DATABASE_ID = 'b1ff9daa012c41c597e1d5ad5dd91917';
+export const DATA_SOURCE_ID = '040fac81-5162-43ee-ad31-e19479696ba3';
+export const BRAND_DESIGN_HUB_DATABASE_ID = '33cce9899cb780ce9228f15ae94531b1';
+export const BRAND_DESIGN_HUB_VIEW_ID = '33cce989-9cb7-80ca-8615-000ce4fd3855';
+export const NOTION_TASK_TEMPLATE_ID = '34ace989-9cb7-80af-b5b5-e4ba36e1c2e2';
 export const OWNER_ID = 'f342c30b-c5c1-4a52-8cdf-c8b636928364';
 
 export const DEFAULT_PROMPT = `Ти — Senior Creative Strategist у performance marketing команді Universe, який створює креативні концепції для рекламних вакансій.

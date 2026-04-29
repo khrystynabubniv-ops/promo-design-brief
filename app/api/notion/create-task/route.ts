@@ -1,8 +1,21 @@
-import { Client } from '@notionhq/client';
 import { NextResponse } from 'next/server';
-import { DATABASE_ID, OWNER_ID } from '@/lib/constants';
+import {
+  BRAND_DESIGN_HUB_DATABASE_ID,
+  BRAND_DESIGN_HUB_VIEW_ID,
+  DATA_SOURCE_ID,
+  NOTION_TASK_TEMPLATE_ID,
+  OWNER_ID,
+} from '@/lib/constants';
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const NOTION_API_VERSION = '2026-03-11';
+const NOTION_PAGES_API_URL = 'https://api.notion.com/v1/pages';
+
+type NotionCreatePageResponse = {
+  id?: string;
+  url?: string;
+  object?: string;
+  message?: string;
+};
 
 function normalizeNotionId(id: string) {
   const compact = id.replaceAll('-', '').trim();
@@ -27,17 +40,35 @@ function splitRichTextContent(content: string) {
 
 function normalizeFormats(value: unknown) {
   if (Array.isArray(value)) {
-    return value.filter((format): format is string => typeof format === 'string' && format.trim().length > 0);
+    return value.filter(
+      (format): format is string => typeof format === 'string' && format.trim().length > 0,
+    );
   }
 
   return typeof value === 'string' && value.trim() ? [value] : [];
 }
 
+function toCompactId(id: string) {
+  return id.replaceAll('-', '');
+}
+
+function buildBrandDesignTaskUrl(pageId: string) {
+  return `https://www.notion.so/${toCompactId(BRAND_DESIGN_HUB_DATABASE_ID)}?v=${toCompactId(
+    BRAND_DESIGN_HUB_VIEW_ID,
+  )}&p=${toCompactId(pageId)}&pm=s`;
+}
+
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+
   try {
     if (!process.env.NOTION_TOKEN || process.env.NOTION_TOKEN === 'your_notion_integration_token') {
+      const durationMs = Date.now() - startedAt;
+
+      console.warn('[create-notion-task] missing NOTION_TOKEN', { durationMs });
+
       return NextResponse.json(
-        { error: 'NOTION_TOKEN не налаштовано в .env.local.' },
+        { durationMs, error: 'NOTION_TOKEN не налаштовано в .env.local.' },
         { status: 500 },
       );
     }
@@ -47,51 +78,92 @@ export async function POST(req: Request) {
     const missingField = requiredFields.find((field) => !body[field]);
 
     if (missingField) {
+      const durationMs = Date.now() - startedAt;
+
+      console.warn('[create-notion-task] missing request field', { durationMs, missingField });
+
       return NextResponse.json(
-        { error: `Поле ${missingField} є обов'язковим.` },
+        { durationMs, error: `Поле ${missingField} є обов'язковим.` },
         { status: 400 },
       );
     }
 
     const formats = normalizeFormats(body.formats ?? body.format);
 
-    const response = await notion.pages.create({
-      parent: { database_id: DATABASE_ID },
-      properties: {
-        Name: { title: [{ text: { content: body.name } }] },
-        Team: { select: { name: 'Brand Design' } },
-        Status: { status: { name: 'To do' } },
-        Priority: { select: { name: body.priority } },
-        Owner: {
-          people: [{ object: 'user', id: OWNER_ID }],
-        },
-        Deadline: { date: { start: body.deadline } },
-        ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
-        ...(formats.length
-          ? { Format: { multi_select: formats.map((format) => ({ name: format })) } }
-          : {}),
-        'Task Type': {
-          relation: [{ id: normalizeNotionId(body.taskTypeId) }],
-        },
-        'Design needed': { checkbox: true },
-        'Design Briefed': { checkbox: true },
-        Description: {
-          rich_text: splitRichTextContent(String(body.brief)),
-        },
+    const response = await fetch(NOTION_PAGES_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': NOTION_API_VERSION,
       },
+      body: JSON.stringify({
+        parent: {
+          type: 'data_source_id',
+          data_source_id: DATA_SOURCE_ID,
+        },
+        properties: {
+          Name: { title: [{ text: { content: body.name } }] },
+          Team: { select: { name: 'Brand Design' } },
+          Status: { status: { name: 'To do' } },
+          Priority: { select: { name: body.priority } },
+          Owner: {
+            people: [{ object: 'user', id: OWNER_ID }],
+          },
+          Deadline: { date: { start: body.deadline } },
+          ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
+          ...(formats.length
+            ? { Format: { multi_select: formats.map((format) => ({ name: format })) } }
+            : {}),
+          'Task Type': {
+            relation: [{ id: normalizeNotionId(body.taskTypeId) }],
+          },
+          'Design needed': { checkbox: true },
+          'Design Briefed': { checkbox: true },
+          Description: {
+            rich_text: splitRichTextContent(String(body.brief)),
+          },
+        },
+        template: {
+          type: 'template_id',
+          template_id: NOTION_TASK_TEMPLATE_ID,
+        },
+      }),
     });
 
+    const data = (await response.json()) as NotionCreatePageResponse;
+
+    if (!response.ok) {
+      throw new Error(data.message ?? `Notion API повернув помилку ${response.status}.`);
+    }
+
+    if (!data.id) {
+      throw new Error('Notion API не повернув ID створеної задачі.');
+    }
+
+    const durationMs = Date.now() - startedAt;
+
+    console.info('[create-notion-task] completed', { durationMs, taskId: data.id });
+
     return NextResponse.json({
-      url: 'url' in response ? response.url : '',
-      id: response.id,
+      durationMs,
+      url: buildBrandDesignTaskUrl(data.id),
+      fallbackUrl: data.url ?? '',
+      id: data.id,
     });
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Notion API повернув невідому помилку.';
+
+    console.error('[create-notion-task] failed', { durationMs, error: message });
+
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Notion API повернув невідому помилку.',
+        durationMs,
+        error: message,
       },
       { status: 500 },
     );

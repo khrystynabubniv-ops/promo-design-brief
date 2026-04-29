@@ -64,10 +64,19 @@ function toAsciiUrlHeaderValue(value: string | undefined) {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+
   try {
     if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'your_key_here') {
+      const durationMs = Date.now() - startedAt;
+
+      console.warn('[generate-brief] missing OPENROUTER_API_KEY', { durationMs });
+
       return NextResponse.json(
-        { error: 'OPENROUTER_API_KEY не налаштовано в .env.local або Railway variables.' },
+        {
+          durationMs,
+          error: 'OPENROUTER_API_KEY не налаштовано в .env.local або Railway variables.',
+        },
         { status: 500 },
       );
     }
@@ -75,8 +84,12 @@ export async function POST(req: Request) {
     const { vacancies, systemPrompt } = await req.json();
 
     if (!vacancies || !systemPrompt) {
+      const durationMs = Date.now() - startedAt;
+
+      console.warn('[generate-brief] missing request fields', { durationMs });
+
       return NextResponse.json(
-        { error: 'Передайте vacancies і systemPrompt.' },
+        { durationMs, error: 'Передайте vacancies і systemPrompt.' },
         { status: 400 },
       );
     }
@@ -127,14 +140,22 @@ export async function POST(req: Request) {
       throw new Error('OpenRouter API не повернув текст брифу.');
     }
 
-    return NextResponse.json({ brief });
+    const durationMs = Date.now() - startedAt;
+
+    console.info('[generate-brief] completed', { durationMs });
+
+    return NextResponse.json({ brief, durationMs });
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const message =
+      error instanceof Error ? error.message : 'OpenRouter API повернув невідому помилку.';
+
+    console.error('[generate-brief] failed', { durationMs, error: message });
+
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'OpenRouter API повернув невідому помилку.',
+        durationMs,
+        error: message,
       },
       { status: 500 },
     );
