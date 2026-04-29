@@ -20,6 +20,11 @@ function normalizeNotionId(id: string) {
   ].join('-');
 }
 
+function splitRichTextContent(content: string) {
+  const chunks = content.match(/[\s\S]{1,2000}/g) ?? [''];
+  return chunks.slice(0, 50).map((chunk) => ({ text: { content: chunk } }));
+}
+
 export async function POST(req: Request) {
   try {
     if (!process.env.NOTION_TOKEN || process.env.NOTION_TOKEN === 'your_notion_integration_token') {
@@ -59,7 +64,7 @@ export async function POST(req: Request) {
         'Design needed': { checkbox: true },
         'Design Briefed': { checkbox: true },
         Description: {
-          rich_text: [{ text: { content: String(body.brief).slice(0, 2000) } }],
+          rich_text: splitRichTextContent(String(body.brief)),
         },
       },
     });

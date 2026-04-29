@@ -9,6 +9,8 @@ import { DEFAULT_PROMPT } from '@/lib/constants';
 import type { ActionStatus, AppStep, NotionTaskForm } from '@/lib/types';
 
 const PROMPT_STORAGE_KEY = 'brief_sys_prompt';
+const PROMPT_STORAGE_VERSION_KEY = 'brief_sys_prompt_version';
+const CURRENT_PROMPT_VERSION = 'creative-strategy-v2';
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
@@ -38,14 +40,20 @@ export default function Home() {
 
   useEffect(() => {
     const savedPrompt = window.localStorage.getItem(PROMPT_STORAGE_KEY);
+    const savedPromptVersion = window.localStorage.getItem(PROMPT_STORAGE_VERSION_KEY);
 
-    if (savedPrompt) {
+    if (savedPrompt && savedPromptVersion === CURRENT_PROMPT_VERSION) {
       setSystemPrompt(savedPrompt);
+      return;
     }
+
+    window.localStorage.setItem(PROMPT_STORAGE_KEY, DEFAULT_PROMPT);
+    window.localStorage.setItem(PROMPT_STORAGE_VERSION_KEY, CURRENT_PROMPT_VERSION);
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(PROMPT_STORAGE_KEY, systemPrompt);
+    window.localStorage.setItem(PROMPT_STORAGE_VERSION_KEY, CURRENT_PROMPT_VERSION);
   }, [systemPrompt]);
 
   async function handleGenerateBrief() {
