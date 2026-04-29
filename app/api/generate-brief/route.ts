@@ -20,6 +20,25 @@ function toAsciiHeaderValue(value: string | undefined) {
   return asciiValue || DEFAULT_OPENROUTER_TITLE;
 }
 
+function toAsciiUrlHeaderValue(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return undefined;
+    }
+
+    const normalizedUrl = url.toString();
+    return /^[\x20-\x7E]+$/.test(normalizedUrl) ? normalizedUrl : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'your_key_here') {
@@ -44,8 +63,10 @@ export async function POST(req: Request) {
       'X-Title': toAsciiHeaderValue(process.env.NEXT_PUBLIC_APP_TITLE),
     };
 
-    if (process.env.OPENROUTER_SITE_URL) {
-      headers['HTTP-Referer'] = process.env.OPENROUTER_SITE_URL;
+    const siteUrl = toAsciiUrlHeaderValue(process.env.OPENROUTER_SITE_URL);
+
+    if (siteUrl) {
+      headers['HTTP-Referer'] = siteUrl;
     }
 
     const response = await fetch(OPENROUTER_API_URL, {
