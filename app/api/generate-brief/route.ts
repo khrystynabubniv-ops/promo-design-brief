@@ -3,6 +3,24 @@ import { NextResponse } from 'next/server';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-4';
 const DEFAULT_OPENROUTER_TITLE = 'Brief Generator';
+const BRIEF_GENERATION_GUARDRAILS = `Критичні правила, які мають вищий пріоритет за стилістичні побажання:
+
+1. Назви вакансій з вхідного тексту треба зберігати дослівно.
+   - Не перекладай назви.
+   - Не скорочуй назви.
+   - Не перефразовуй назви.
+   - Не додавай нові слова до назв.
+   - Якщо назва подана як Markdown heading, прибери тільки службові символи Markdown (#, **), але залиш саму назву без зміни.
+
+2. Бриф повинен бути читабельним Markdown:
+   - Не використовуй code fence.
+   - Використовуй заголовки ## та ###.
+   - Кожну вакансію оформлюй як: ### **[точна назва вакансії]**
+   - Став порожній рядок між секціями, концептами та списками.
+   - Використовуй жирний текст для labels: **Лінки:**, **Формат:**, **Тексти:**.
+   - Використовуй bullet lists замість довгих суцільних абзаців.
+
+3. Якщо у вхідному тексті є кілька вакансій, збережи всі вакансії в тому самому порядку.`;
 
 type OpenRouterResponse = {
   choices?: Array<{
@@ -79,7 +97,7 @@ export async function POST(req: Request) {
         messages: [
           {
             role: 'system',
-            content: systemPrompt,
+            content: `${systemPrompt}\n\n${BRIEF_GENERATION_GUARDRAILS}`,
           },
           {
             role: 'user',
