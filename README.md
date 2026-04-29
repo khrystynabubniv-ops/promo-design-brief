@@ -1,6 +1,6 @@
 # Vacancy Brief Generator
 
-Internal Universe Group tool for generating promo vacancy design briefs with Anthropic and creating designer tasks in Notion.
+Internal Universe Group tool for generating promo vacancy design briefs with OpenRouter and creating designer tasks in Notion.
 
 ## Local Setup
 
@@ -12,9 +12,14 @@ npm run dev
 
 Required environment variables:
 
-- `ANTHROPIC_API_KEY`
+- `OPENROUTER_API_KEY`
 - `NOTION_TOKEN`
 - `NEXT_PUBLIC_APP_TITLE`
+
+Optional environment variables:
+
+- `OPENROUTER_MODEL` defaults to `anthropic/claude-sonnet-4`
+- `OPENROUTER_SITE_URL` identifies the app in OpenRouter analytics
 
 ## Scripts
 

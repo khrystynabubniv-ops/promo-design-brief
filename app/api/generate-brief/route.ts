@@ -1,15 +1,24 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-4';
+
+type OpenRouterResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'your_key_here') {
+    if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'your_key_here') {
       return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY не налаштовано в .env.local.' },
+        { error: 'OPENROUTER_API_KEY не налаштовано в .env.local або Railway variables.' },
         { status: 500 },
       );
     }
@@ -23,22 +32,49 @@ export async function POST(req: Request) {
       );
     }
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: `Ось список вакансій:\n\n${vacancies}\n\nНапиши бриф на дизайнера.`,
-        },
-      ],
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'X-OpenRouter-Title': process.env.NEXT_PUBLIC_APP_TITLE ?? 'Brief Generator',
+    };
+
+    if (process.env.OPENROUTER_SITE_URL) {
+      headers['HTTP-Referer'] = process.env.OPENROUTER_SITE_URL;
+    }
+
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+        max_tokens: 4000,
+        temperature: 0.7,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: `Ось список вакансій:\n\n${vacancies}\n\nНапиши бриф на дизайнера.`,
+          },
+        ],
+      }),
     });
 
-    const brief = message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n\n');
+    const data = (await response.json()) as OpenRouterResponse;
+
+    if (!response.ok) {
+      throw new Error(
+        data.error?.message ?? `OpenRouter API повернув помилку ${response.status}.`,
+      );
+    }
+
+    const brief = data.choices?.[0]?.message?.content ?? '';
+
+    if (!brief) {
+      throw new Error('OpenRouter API не повернув текст брифу.');
+    }
 
     return NextResponse.json({ brief });
   } catch (error) {
@@ -47,7 +83,7 @@ export async function POST(req: Request) {
         error:
           error instanceof Error
             ? error.message
-            : 'Anthropic API повернув невідому помилку.',
+            : 'OpenRouter API повернув невідому помилку.',
       },
       { status: 500 },
     );
