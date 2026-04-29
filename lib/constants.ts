@@ -162,8 +162,7 @@ export const PRIORITIES: Priority[] = [
 ];
 
 export const PLATFORMS: SelectOption[] = [
-  'Instagram',
-  'Facebook',
+  'Meta',
   'LinkedIn',
   'Telegram',
   'TikTok',
