@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-4';
+const DEFAULT_OPENROUTER_TITLE = 'Brief Generator';
 
 type OpenRouterResponse = {
   choices?: Array<{
@@ -13,6 +14,11 @@ type OpenRouterResponse = {
     message?: string;
   };
 };
+
+function toAsciiHeaderValue(value: string | undefined) {
+  const asciiValue = value?.replace(/[^\x20-\x7E]/g, '').trim();
+  return asciiValue || DEFAULT_OPENROUTER_TITLE;
+}
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +41,7 @@ export async function POST(req: Request) {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
-      'X-OpenRouter-Title': process.env.NEXT_PUBLIC_APP_TITLE ?? 'Brief Generator',
+      'X-Title': toAsciiHeaderValue(process.env.NEXT_PUBLIC_APP_TITLE),
     };
 
     if (process.env.OPENROUTER_SITE_URL) {
