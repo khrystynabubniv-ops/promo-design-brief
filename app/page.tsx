@@ -19,7 +19,7 @@ const initialNotionForm: NotionTaskForm = {
   deadline: '',
   priority: 'Planned',
   platform: 'Instagram',
-  format: 'Static Image',
+  formats: ['Static Image'],
   taskTypeId: '',
 };
 

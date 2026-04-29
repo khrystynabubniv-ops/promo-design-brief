@@ -25,6 +25,14 @@ function splitRichTextContent(content: string) {
   return chunks.slice(0, 50).map((chunk) => ({ text: { content: chunk } }));
 }
 
+function normalizeFormats(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.filter((format): format is string => typeof format === 'string' && format.trim().length > 0);
+  }
+
+  return typeof value === 'string' && value.trim() ? [value] : [];
+}
+
 export async function POST(req: Request) {
   try {
     if (!process.env.NOTION_TOKEN || process.env.NOTION_TOKEN === 'your_notion_integration_token') {
@@ -45,6 +53,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const formats = normalizeFormats(body.formats ?? body.format);
+
     const response = await notion.pages.create({
       parent: { database_id: DATABASE_ID },
       properties: {
@@ -57,7 +67,9 @@ export async function POST(req: Request) {
         },
         Deadline: { date: { start: body.deadline } },
         ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
-        ...(body.format ? { Format: { select: { name: body.format } } } : {}),
+        ...(formats.length
+          ? { Format: { multi_select: formats.map((format) => ({ name: format })) } }
+          : {}),
         'Task Type': {
           relation: [{ id: normalizeNotionId(body.taskTypeId) }],
         },

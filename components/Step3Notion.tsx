@@ -23,6 +23,14 @@ export function Step3Notion({
 }: Step3NotionProps) {
   const isLoading = status.kind === 'loading';
 
+  function toggleFormat(format: string) {
+    const selectedFormats = form.formats.includes(format)
+      ? form.formats.filter((currentFormat) => currentFormat !== format)
+      : [...form.formats, format];
+
+    onFormChange({ formats: selectedFormats });
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -104,21 +112,31 @@ export function Step3Notion({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="format">
-                Format
-              </label>
-              <select
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
-                id="format"
-                value={form.format}
-                onChange={(event) => onFormChange({ format: event.target.value })}
-              >
-                {FORMATS.map((format) => (
-                  <option key={format} value={format}>
-                    {format}
-                  </option>
-                ))}
-              </select>
+              <fieldset>
+                <legend className="mb-2 text-sm font-semibold text-neutral-950">Format</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {FORMATS.map((format) => {
+                    const selected = form.formats.includes(format);
+
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className={[
+                          'min-h-11 rounded-md border px-3 py-2 text-left text-sm font-medium transition',
+                          selected
+                            ? 'border-neutral-950 bg-neutral-950 text-white'
+                            : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
+                        ].join(' ')}
+                        key={format}
+                        onClick={() => toggleFormat(format)}
+                        type="button"
+                      >
+                        {format}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
             </div>
           </div>
 

@@ -28,6 +28,6 @@ export type NotionTaskForm = {
   deadline: string;
   priority: Priority;
   platform: string;
-  format: string;
+  formats: string[];
   taskTypeId: string;
 };
