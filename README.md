@@ -18,8 +18,13 @@ Required environment variables:
 
 Optional environment variables:
 
-- `OPENROUTER_MODEL` defaults to `anthropic/claude-sonnet-4`
+- `OPENROUTER_MODEL` defaults to `anthropic/claude-sonnet-4.6`
+- `OPENROUTER_MAX_TOKENS` defaults to `8000`
+- `OPENROUTER_TIMEOUT_MS` defaults to `240000`
 - `OPENROUTER_SITE_URL` identifies the app in OpenRouter analytics
+
+The vacancies field accepts plain vacancy text or public Ashby vacancy links.
+Ashby links are resolved on the server before the brief is sent to OpenRouter.
 
 ## Scripts
 

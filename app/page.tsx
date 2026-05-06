@@ -22,14 +22,17 @@ const initialNotionForm: NotionTaskForm = {
   deadline: '',
   priority: 'Planned',
   platform: 'Meta',
-  formats: ['Static Image'],
+  format: 'Static Image',
   taskTypeId: '',
 };
 
 type GenerateBriefResponse = {
   brief?: string;
+  continuationAttempts?: number;
   durationMs?: number;
   error?: string;
+  finishReason?: string | null;
+  resolvedUrlCount?: number;
 };
 
 type CreateNotionTaskResponse = {
@@ -39,6 +42,28 @@ type CreateNotionTaskResponse = {
   durationMs?: number;
   error?: string;
 };
+
+async function readApiJson<T>(response: Response): Promise<T> {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+function getRequestErrorMessage(error: unknown) {
+  if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
+    return 'Не вдалося з’єднатися з API генерації. Перевірте, що сервер запущений, а деплой не обриває довгий запит.';
+  }
+
+  return error instanceof Error ? error.message : 'Сталася помилка генерації.';
+}
 
 function createHistoryId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -203,10 +228,12 @@ export default function Home() {
         }),
       });
 
-      const data = (await response.json()) as GenerateBriefResponse;
+      const data = await readApiJson<GenerateBriefResponse>(response);
 
       if (!response.ok) {
-        throw new Error(data.error ?? 'Не вдалося згенерувати бриф.');
+        throw new Error(
+          data.error ?? `Не вдалося згенерувати бриф. Сервер повернув ${response.status}.`,
+        );
       }
 
       const generatedBrief = data.brief ?? '';
@@ -231,7 +258,17 @@ export default function Home() {
           generateBriefMs: durationMs,
         },
       });
-      setGenerateStatus({ kind: 'success', message: `Бриф готовий за ${formatDurationLabel(durationMs)}.` });
+      const continuationMessage = data.continuationAttempts
+        ? ` Дозібрано ${data.continuationAttempts} продовження.`
+        : '';
+      const resolvedLinksMessage = data.resolvedUrlCount
+        ? ` Опрацьовано ${data.resolvedUrlCount} Ashby-лінків.`
+        : '';
+
+      setGenerateStatus({
+        kind: 'success',
+        message: `Бриф готовий за ${formatDurationLabel(durationMs)}.${resolvedLinksMessage}${continuationMessage}`,
+      });
       setStep(2);
     } catch (error) {
       const durationMs = Math.round(performance.now() - requestStartedAt);
@@ -239,7 +276,7 @@ export default function Home() {
       console.error('[Brief Generator] generate-brief failed', { durationMs, error });
       setGenerateStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : 'Сталася помилка генерації.',
+        message: getRequestErrorMessage(error),
       });
     }
   }

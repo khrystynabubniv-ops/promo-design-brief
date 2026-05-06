@@ -25,14 +25,6 @@ export function Step3Notion({
 }: Step3NotionProps) {
   const isLoading = status.kind === 'loading';
 
-  function toggleFormat(format: string) {
-    const selectedFormats = form.formats.includes(format)
-      ? form.formats.filter((currentFormat) => currentFormat !== format)
-      : [...form.formats, format];
-
-    onFormChange({ formats: selectedFormats });
-  }
-
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -160,7 +152,7 @@ export function Step3Notion({
                 <legend className="mb-2 text-sm font-semibold text-neutral-950">Format</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {FORMATS.map((format) => {
-                    const selected = form.formats.includes(format);
+                    const selected = form.format === format;
 
                     return (
                       <button
@@ -172,7 +164,7 @@ export function Step3Notion({
                             : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
                         ].join(' ')}
                         key={format}
-                        onClick={() => toggleFormat(format)}
+                        onClick={() => onFormChange({ format })}
                         type="button"
                       >
                         {format}

@@ -46,7 +46,7 @@ export function Step1Vacancies({
         <textarea
           className="min-h-80 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
           id="vacancies"
-          placeholder="Вставте список вакансій..."
+          placeholder="Вставте текст вакансій або публічні Ashby-лінки..."
           rows={12}
           value={vacancies}
           onChange={(event) => onVacanciesChange(event.target.value)}

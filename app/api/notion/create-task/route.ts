@@ -3,6 +3,7 @@ import {
   BRAND_DESIGN_HUB_DATABASE_ID,
   BRAND_DESIGN_HUB_VIEW_ID,
   DATA_SOURCE_ID,
+  FORMAT_PROPERTY_NAME,
   NOTION_TASK_TEMPLATE_ID,
   OWNER_ID,
 } from '@/lib/constants';
@@ -16,6 +17,8 @@ type NotionCreatePageResponse = {
   object?: string;
   message?: string;
 };
+
+type NotionPageProperties = Record<string, unknown>;
 
 function normalizeNotionId(id: string) {
   const compact = id.replaceAll('-', '').trim();
@@ -38,14 +41,14 @@ function splitRichTextContent(content: string) {
   return chunks.slice(0, 50).map((chunk) => ({ text: { content: chunk } }));
 }
 
-function normalizeFormats(value: unknown) {
+function normalizeFormat(value: unknown) {
   if (Array.isArray(value)) {
-    return value.filter(
+    return value.find(
       (format): format is string => typeof format === 'string' && format.trim().length > 0,
-    );
+    )?.trim() ?? '';
   }
 
-  return typeof value === 'string' && value.trim() ? [value] : [];
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function toCompactId(id: string) {
@@ -88,7 +91,35 @@ export async function POST(req: Request) {
       );
     }
 
-    const formats = normalizeFormats(body.formats ?? body.format);
+    const format = normalizeFormat(body.format ?? body.formats);
+    const formatProperty = format ? { select: { name: format } } : undefined;
+    const properties: NotionPageProperties = {
+      Name: { title: [{ text: { content: body.name } }] },
+      Team: { select: { name: 'Brand Design' } },
+      Status: { status: { name: 'To do' } },
+      Priority: { select: { name: body.priority } },
+      Owner: {
+        people: [{ object: 'user', id: OWNER_ID }],
+      },
+      Deadline: { date: { start: body.deadline } },
+      ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
+      ...(formatProperty ? { [FORMAT_PROPERTY_NAME]: formatProperty } : {}),
+      'Task Type': {
+        relation: [{ id: normalizeNotionId(body.taskTypeId) }],
+      },
+      'Design needed': { checkbox: true },
+      'Design Briefed': { checkbox: true },
+      Description: {
+        rich_text: splitRichTextContent(String(body.brief)),
+      },
+    };
+
+    console.info('[create-notion-task] prepared Notion properties', {
+      format,
+      formatPropertyType: formatProperty ? 'select' : 'omitted',
+      formatPropertyKey: formatProperty ? FORMAT_PROPERTY_NAME : null,
+      receivedLegacyFormats: Array.isArray(body.formats),
+    });
 
     const response = await fetch(NOTION_PAGES_API_URL, {
       method: 'POST',
@@ -102,28 +133,7 @@ export async function POST(req: Request) {
           type: 'data_source_id',
           data_source_id: DATA_SOURCE_ID,
         },
-        properties: {
-          Name: { title: [{ text: { content: body.name } }] },
-          Team: { select: { name: 'Brand Design' } },
-          Status: { status: { name: 'To do' } },
-          Priority: { select: { name: body.priority } },
-          Owner: {
-            people: [{ object: 'user', id: OWNER_ID }],
-          },
-          Deadline: { date: { start: body.deadline } },
-          ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
-          ...(formats.length
-            ? { Format: { multi_select: formats.map((format) => ({ name: format })) } }
-            : {}),
-          'Task Type': {
-            relation: [{ id: normalizeNotionId(body.taskTypeId) }],
-          },
-          'Design needed': { checkbox: true },
-          'Design Briefed': { checkbox: true },
-          Description: {
-            rich_text: splitRichTextContent(String(body.brief)),
-          },
-        },
+        properties,
         template: {
           type: 'template_id',
           template_id: NOTION_TASK_TEMPLATE_ID,
@@ -134,6 +144,12 @@ export async function POST(req: Request) {
     const data = (await response.json()) as NotionCreatePageResponse;
 
     if (!response.ok) {
+      console.error('[create-notion-task] Notion rejected request', {
+        status: response.status,
+        message: data.message,
+        formatPropertyType: formatProperty ? 'select' : 'omitted',
+      });
+
       throw new Error(data.message ?? `Notion API повернув помилку ${response.status}.`);
     }
 

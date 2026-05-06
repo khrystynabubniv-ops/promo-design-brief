@@ -28,7 +28,7 @@ export type NotionTaskForm = {
   deadline: string;
   priority: Priority;
   platform: string;
-  formats: string[];
+  format: string;
   taskTypeId: string;
 };
 
