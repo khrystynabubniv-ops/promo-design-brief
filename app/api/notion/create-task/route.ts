@@ -14,8 +14,8 @@ const NOTION_BLOCKS_API_URL = 'https://api.notion.com/v1/blocks';
 const RICH_TEXT_CONTENT_LIMIT = 2000;
 const RICH_TEXT_ARRAY_LIMIT = 100;
 const APPEND_CHILDREN_BATCH_SIZE = 80;
-const DESCRIPTION_TOO_LONG_MESSAGE =
-  'Опис дуже довгий, а це поле має ліміти Notion. Повний бриф шукайте нижче в тілі задачі.';
+const DESCRIPTION_BRIEF_LOCATION_MESSAGE =
+  'Повний бриф додано нижче в тілі задачі.';
 const PARENT_ITEM_PROPERTY_NAME = 'Parent item';
 
 type NotionCreatePageResponse = {
@@ -94,19 +94,10 @@ function splitRichTextContent(content: string, maxChunks = RICH_TEXT_ARRAY_LIMIT
     .map((chunk) => ({ text: { content: chunk } }));
 }
 
-function buildDescriptionRichText(content: string) {
-  const maxDescriptionLength = RICH_TEXT_CONTENT_LIMIT * RICH_TEXT_ARRAY_LIMIT;
-
-  if (content.length <= maxDescriptionLength) {
-    return {
-      richText: splitRichTextContent(content),
-      tooLong: false,
-    };
-  }
-
+function buildDescriptionRichText() {
   return {
-    richText: splitRichTextContent(DESCRIPTION_TOO_LONG_MESSAGE),
-    tooLong: true,
+    richText: splitRichTextContent(DESCRIPTION_BRIEF_LOCATION_MESSAGE),
+    tooLong: false,
   };
 }
 
@@ -296,12 +287,11 @@ function buildBrandDesignTaskUrl(pageId: string) {
 
 function buildTaskProperties({
   body,
-  brief,
   formatProperty,
   name,
   parentTaskId,
-}: Pick<CreateTaskPageOptions, 'body' | 'brief' | 'formatProperty' | 'name' | 'parentTaskId'>) {
-  const description = buildDescriptionRichText(brief);
+}: Pick<CreateTaskPageOptions, 'body' | 'formatProperty' | 'name' | 'parentTaskId'>) {
+  const description = buildDescriptionRichText();
   const properties: NotionPageProperties = {
     Name: { title: [{ text: { content: name } }] },
     Team: { select: { name: 'Brand Design' } },
@@ -347,7 +337,6 @@ async function createTaskPage({
 }: CreateTaskPageOptions): Promise<CreatedTaskPage> {
   const { description, properties } = buildTaskProperties({
     body,
-    brief,
     formatProperty,
     name,
     parentTaskId,
