@@ -11,8 +11,23 @@ const DEFAULT_OPENROUTER_TIMEOUT_MS = 240000;
 const MAX_VACANCY_URLS = 30;
 const VACANCY_FETCH_CONCURRENCY = 5;
 const VACANCY_FETCH_TIMEOUT_MS = 15000;
+const BRIEF_GENERATION_CONCURRENCY = 2;
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const COMPLETION_MARKER = '<!-- BRIEF_COMPLETE -->';
+const UKRAINIAN_MONTHS = [
+  'Січень',
+  'Лютий',
+  'Березень',
+  'Квітень',
+  'Травень',
+  'Червень',
+  'Липень',
+  'Серпень',
+  'Вересень',
+  'Жовтень',
+  'Листопад',
+  'Грудень',
+];
 const ASHBY_JOB_POSTING_QUERY = `query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) {
   jobPosting(
     organizationHostedJobsPageName: $organizationHostedJobsPageName
@@ -131,9 +146,26 @@ type ResolvedVacancy = {
   compensationTierSummary?: string;
 };
 
+type VacancyInput = {
+  id: string;
+  title: string;
+  sourceUrl?: string;
+  content: string;
+};
+
 type ResolvedVacancyInput = {
   resolvedUrlCount: number;
   vacanciesForModel: string;
+  vacancyInputs: VacancyInput[];
+};
+
+type GeneratedVacancyBrief = {
+  brief: string;
+  finishReason: string | null;
+  id: string;
+  sourceUrl?: string;
+  title: string;
+  continuationAttempts: number;
 };
 
 const HTML_ENTITIES: Record<string, string> = {
@@ -207,6 +239,38 @@ function uniqueValues(values: string[]) {
 
 function cleanUrlMatch(value: string) {
   return value.replace(/[),.;\]]+$/g, '');
+}
+
+function cleanMarkdownTitle(value: string) {
+  return value
+    .replace(/^#+\s*/, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deriveTitleFromVacancyText(value: string) {
+  const firstMeaningfulLine = value
+    .split('\n')
+    .map(cleanMarkdownTitle)
+    .find((line) => line && !/^https?:\/\//i.test(line));
+
+  if (!firstMeaningfulLine) {
+    return 'Промо вакансія';
+  }
+
+  return firstMeaningfulLine.length > 90
+    ? `${firstMeaningfulLine.slice(0, 90)}...`
+    : firstMeaningfulLine;
+}
+
+function buildDefaultTaskTitle(vacancyCount: number, firstVacancyTitle: string) {
+  if (vacancyCount <= 1) {
+    return firstVacancyTitle || 'Промо вакансія';
+  }
+
+  const now = new Date();
+  return `Промо вакансій ${UKRAINIAN_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 }
 
 function extractUrls(value: string) {
@@ -458,13 +522,34 @@ ${originalVacancies.trim()}
 ${resolvedVacancies.map(formatResolvedVacancy).join('\n\n---\n\n')}`;
 }
 
+function buildSingleVacancyForModel(originalVacancies: string, vacancy: ResolvedVacancy) {
+  return `Оригінальний інпут рекрутера може містити кілька вакансій. Використовуй його тільки як контекст:
+${originalVacancies.trim()}
+
+Конкретна вакансія для цього брифу:
+${formatResolvedVacancy(vacancy)}`;
+}
+
+function buildCombinedBrief(vacancyBriefs: GeneratedVacancyBrief[]) {
+  return vacancyBriefs
+    .map((vacancyBrief) => vacancyBrief.brief.trim())
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+}
+
 async function resolveVacancyInput(vacancies: string): Promise<ResolvedVacancyInput> {
   const urls = extractUrls(vacancies);
+  const fallbackVacancyInput = {
+    id: 'vacancy-1',
+    title: deriveTitleFromVacancyText(vacancies),
+    content: vacancies,
+  };
 
   if (!urls.length) {
     return {
       resolvedUrlCount: 0,
       vacanciesForModel: vacancies,
+      vacancyInputs: [fallbackVacancyInput],
     };
   }
 
@@ -474,6 +559,7 @@ async function resolveVacancyInput(vacancies: string): Promise<ResolvedVacancyIn
     return {
       resolvedUrlCount: 0,
       vacanciesForModel: vacancies,
+      vacancyInputs: [fallbackVacancyInput],
     };
   }
 
@@ -492,6 +578,12 @@ async function resolveVacancyInput(vacancies: string): Promise<ResolvedVacancyIn
   return {
     resolvedUrlCount: resolvedVacancies.length,
     vacanciesForModel: buildVacanciesForModel(vacancies, resolvedVacancies),
+    vacancyInputs: resolvedVacancies.map((vacancy, index) => ({
+      id: `vacancy-${index + 1}`,
+      title: vacancy.title,
+      sourceUrl: vacancy.sourceUrl,
+      content: buildSingleVacancyForModel(vacancies, vacancy),
+    })),
   };
 }
 
@@ -551,6 +643,86 @@ async function requestBriefCompletion(
   };
 }
 
+async function generateBriefForVacancy(
+  headers: Record<string, string>,
+  systemPrompt: string,
+  vacancyInput: VacancyInput,
+): Promise<GeneratedVacancyBrief> {
+  const baseMessages: OpenRouterMessage[] = [
+    {
+      role: 'system',
+      content: `${systemPrompt}
+
+${BRIEF_GENERATION_GUARDRAILS}
+
+Цей запит стосується рівно однієї конкретної вакансії.
+Не додавай у відповідь інші вакансії з оригінального інпуту, навіть якщо вони там є.
+Назву вакансії використовуй дослівно: ${vacancyInput.title}
+
+Якщо інпут містить блок "Конкретна вакансія для цього брифу", використовуй його як основне джерело фактів про роль.
+
+Технічне правило завершення: коли повний бриф готовий, додай окремим останнім рядком ${COMPLETION_MARKER}.`,
+    },
+    {
+      role: 'user',
+      content: `Ось вакансія:\n\n${vacancyInput.content}\n\nНапиши бриф на дизайнера тільки для цієї вакансії.`,
+    },
+  ];
+  let brief = '';
+  let finishReason: string | null = null;
+  let continuationAttempts = 0;
+
+  for (let attempt = 0; attempt <= MAX_CONTINUATION_ATTEMPTS; attempt += 1) {
+    const messages =
+      attempt === 0
+        ? baseMessages
+        : [
+            ...baseMessages,
+            {
+              role: 'assistant' as const,
+              content: brief,
+            },
+            {
+              role: 'user' as const,
+              content: createContinuationPrompt(finishReason),
+            },
+          ];
+    const completion = await requestBriefCompletion(headers, messages);
+
+    brief += completion.content;
+    finishReason = completion.finishReason;
+
+    if (brief.includes(COMPLETION_MARKER)) {
+      break;
+    }
+
+    if (attempt < MAX_CONTINUATION_ATTEMPTS) {
+      continuationAttempts += 1;
+    }
+  }
+
+  const isComplete = brief.includes(COMPLETION_MARKER);
+
+  if (!isComplete) {
+    const reason = isTokenLimitFinishReason(finishReason)
+      ? 'Модель досягла ліміту довжини відповіді.'
+      : 'Модель не підтвердила завершення брифу.';
+
+    throw new Error(
+      `${reason} Спробуйте ще раз або зменшіть кількість вакансій в одному запиті.`,
+    );
+  }
+
+  return {
+    brief: stripCompletionMarker(brief),
+    continuationAttempts,
+    finishReason,
+    id: vacancyInput.id,
+    sourceUrl: vacancyInput.sourceUrl,
+    title: vacancyInput.title,
+  };
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
 
@@ -594,70 +766,18 @@ export async function POST(req: Request) {
       headers['HTTP-Referer'] = siteUrl;
     }
 
-    const { resolvedUrlCount, vacanciesForModel } = await resolveVacancyInput(vacancies);
-
-    const baseMessages: OpenRouterMessage[] = [
-      {
-        role: 'system',
-        content: `${systemPrompt}
-
-${BRIEF_GENERATION_GUARDRAILS}
-
-Якщо інпут містить блок "Витягнуті описи вакансій з лінків", використовуй його як основне джерело фактів про ролі.
-
-Технічне правило завершення: коли повний бриф готовий, додай окремим останнім рядком ${COMPLETION_MARKER}.`,
-      },
-      {
-        role: 'user',
-        content: `Ось список вакансій:\n\n${vacanciesForModel}\n\nНапиши бриф на дизайнера.`,
-      },
-    ];
-    let brief = '';
-    let finishReason: string | null = null;
-    let continuationAttempts = 0;
-
-    for (let attempt = 0; attempt <= MAX_CONTINUATION_ATTEMPTS; attempt += 1) {
-      const messages =
-        attempt === 0
-          ? baseMessages
-          : [
-              ...baseMessages,
-              {
-                role: 'assistant' as const,
-                content: brief,
-              },
-              {
-                role: 'user' as const,
-                content: createContinuationPrompt(finishReason),
-              },
-            ];
-      const completion = await requestBriefCompletion(headers, messages);
-
-      brief += completion.content;
-      finishReason = completion.finishReason;
-
-      if (brief.includes(COMPLETION_MARKER)) {
-        break;
-      }
-
-      if (attempt < MAX_CONTINUATION_ATTEMPTS) {
-        continuationAttempts += 1;
-      }
-    }
-
-    const isComplete = brief.includes(COMPLETION_MARKER);
-
-    if (!isComplete) {
-      const reason = isTokenLimitFinishReason(finishReason)
-        ? 'Модель досягла ліміту довжини відповіді.'
-        : 'Модель не підтвердила завершення брифу.';
-
-      throw new Error(
-        `${reason} Спробуйте ще раз або зменшіть кількість вакансій в одному запиті.`,
-      );
-    }
-
-    const cleanBrief = stripCompletionMarker(brief);
+    const { resolvedUrlCount, vacancyInputs } = await resolveVacancyInput(vacancies);
+    const vacancyBriefs = await mapWithConcurrency(
+      vacancyInputs,
+      BRIEF_GENERATION_CONCURRENCY,
+      (vacancyInput) => generateBriefForVacancy(headers, systemPrompt, vacancyInput),
+    );
+    const continuationAttempts = vacancyBriefs.reduce(
+      (total, vacancyBrief) => total + vacancyBrief.continuationAttempts,
+      0,
+    );
+    const finishReason = vacancyBriefs.at(-1)?.finishReason ?? null;
+    const cleanBrief = buildCombinedBrief(vacancyBriefs);
     const durationMs = Date.now() - startedAt;
 
     console.info('[generate-brief] completed', {
@@ -665,6 +785,7 @@ ${BRIEF_GENERATION_GUARDRAILS}
       continuationAttempts,
       finishReason,
       resolvedUrlCount,
+      vacancyBriefCount: vacancyBriefs.length,
     });
 
     return NextResponse.json({
@@ -672,7 +793,14 @@ ${BRIEF_GENERATION_GUARDRAILS}
       durationMs,
       continuationAttempts,
       finishReason,
+      parentTitle: buildDefaultTaskTitle(vacancyBriefs.length, vacancyBriefs[0]?.title ?? ''),
       resolvedUrlCount,
+      vacancyBriefs: vacancyBriefs.map((vacancyBrief) => ({
+        brief: vacancyBrief.brief,
+        id: vacancyBrief.id,
+        sourceUrl: vacancyBrief.sourceUrl,
+        title: vacancyBrief.title,
+      })),
     });
   } catch (error) {
     const durationMs = Date.now() - startedAt;

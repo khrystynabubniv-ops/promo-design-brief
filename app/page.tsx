@@ -7,7 +7,14 @@ import { Step2Brief } from '@/components/Step2Brief';
 import { Step3Notion } from '@/components/Step3Notion';
 import { RequestHistory } from '@/components/RequestHistory';
 import { DEFAULT_PROMPT } from '@/lib/constants';
-import type { ActionStatus, AppStep, NotionTaskForm, RequestHistoryItem } from '@/lib/types';
+import type {
+  ActionStatus,
+  AppStep,
+  NotionTaskForm,
+  NotionTaskLink,
+  RequestHistoryItem,
+  VacancyBrief,
+} from '@/lib/types';
 
 const PROMPT_STORAGE_KEY = 'brief_sys_prompt';
 const PROMPT_STORAGE_VERSION_KEY = 'brief_sys_prompt_version';
@@ -32,15 +39,22 @@ type GenerateBriefResponse = {
   durationMs?: number;
   error?: string;
   finishReason?: string | null;
+  parentTitle?: string;
   resolvedUrlCount?: number;
+  vacancyBriefs?: VacancyBrief[];
 };
 
 type CreateNotionTaskResponse = {
+  appendedBriefBlockCount?: number;
+  childTaskCount?: number;
+  descriptionTooLong?: boolean;
   url?: string;
   fallbackUrl?: string;
   id?: string;
   durationMs?: number;
   error?: string;
+  tasks?: NotionTaskLink[];
+  warning?: string;
 };
 
 async function readApiJson<T>(response: Response): Promise<T> {
@@ -86,6 +100,120 @@ function deriveHistoryTitle(vacancies: string) {
   return firstLine.length > 72 ? `${firstLine.slice(0, 72)}...` : firstLine;
 }
 
+function combineVacancyBriefs(vacancyBriefs: VacancyBrief[]) {
+  return vacancyBriefs
+    .map((vacancyBrief) => vacancyBrief.brief.trim())
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+}
+
+function normalizeGeneratedVacancyBriefs(data: GenerateBriefResponse, fallbackBrief: string, vacanciesInput: string) {
+  if (Array.isArray(data.vacancyBriefs) && data.vacancyBriefs.length) {
+    const vacancyBriefs = data.vacancyBriefs
+      .map((vacancyBrief, index): VacancyBrief | null => {
+        if (!vacancyBrief || typeof vacancyBrief.brief !== 'string') {
+          return null;
+        }
+
+        const briefText = vacancyBrief.brief.trim();
+
+        if (!briefText) {
+          return null;
+        }
+
+        return {
+          brief: briefText,
+          id: typeof vacancyBrief.id === 'string' && vacancyBrief.id.trim()
+            ? vacancyBrief.id
+            : `vacancy-${index + 1}`,
+          sourceUrl: typeof vacancyBrief.sourceUrl === 'string' && vacancyBrief.sourceUrl.trim()
+            ? vacancyBrief.sourceUrl
+            : undefined,
+          title: typeof vacancyBrief.title === 'string' && vacancyBrief.title.trim()
+            ? vacancyBrief.title
+            : `Вакансія ${index + 1}`,
+        };
+      })
+      .filter((vacancyBrief): vacancyBrief is VacancyBrief => Boolean(vacancyBrief));
+
+    if (vacancyBriefs.length) {
+      return vacancyBriefs;
+    }
+  }
+
+  return [
+    {
+      brief: fallbackBrief,
+      id: 'vacancy-1',
+      title: deriveHistoryTitle(vacanciesInput),
+    },
+  ];
+}
+
+function parseVacancyBriefs(value: unknown): VacancyBrief[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const vacancyBriefs = value
+    .map((item, index): VacancyBrief | null => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const candidate = item as Partial<VacancyBrief>;
+
+      if (typeof candidate.brief !== 'string' || !candidate.brief.trim()) {
+        return null;
+      }
+
+      return {
+        brief: candidate.brief,
+        id: typeof candidate.id === 'string' ? candidate.id : `vacancy-${index + 1}`,
+        sourceUrl: typeof candidate.sourceUrl === 'string' ? candidate.sourceUrl : undefined,
+        title: typeof candidate.title === 'string' ? candidate.title : `Вакансія ${index + 1}`,
+      };
+    })
+    .filter((item): item is VacancyBrief => Boolean(item));
+
+  return vacancyBriefs.length ? vacancyBriefs : undefined;
+}
+
+function parseTaskUrls(value: unknown): NotionTaskLink[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const taskUrls = value
+    .map((item): NotionTaskLink | null => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const candidate = item as Partial<NotionTaskLink>;
+
+      if (
+        typeof candidate.id !== 'string' ||
+        typeof candidate.name !== 'string' ||
+        typeof candidate.url !== 'string' ||
+        !['single', 'parent', 'child'].includes(String(candidate.kind))
+      ) {
+        return null;
+      }
+
+      return {
+        fallbackUrl: typeof candidate.fallbackUrl === 'string' ? candidate.fallbackUrl : undefined,
+        id: candidate.id,
+        kind: candidate.kind as NotionTaskLink['kind'],
+        name: candidate.name,
+        url: candidate.url,
+      };
+    })
+    .filter((item): item is NotionTaskLink => Boolean(item));
+
+  return taskUrls.length ? taskUrls : undefined;
+}
+
 function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
   if (!rawHistory) {
     return [];
@@ -122,10 +250,12 @@ function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
           vacancies: candidate.vacancies,
           systemPrompt: typeof candidate.systemPrompt === 'string' ? candidate.systemPrompt : '',
           brief: candidate.brief,
+          vacancyBriefs: parseVacancyBriefs(candidate.vacancyBriefs),
           notionForm: candidate.notionForm,
           taskUrl: candidate.taskUrl,
           taskFallbackUrl: candidate.taskFallbackUrl,
           taskId: candidate.taskId,
+          taskUrls: parseTaskUrls(candidate.taskUrls),
           timings: candidate.timings ?? {},
         });
 
@@ -142,10 +272,12 @@ export default function Home() {
   const [vacancies, setVacancies] = useState('');
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
   const [brief, setBrief] = useState('');
+  const [vacancyBriefs, setVacancyBriefs] = useState<VacancyBrief[]>([]);
   const [generateStatus, setGenerateStatus] = useState<ActionStatus>(initialStatus);
   const [notionStatus, setNotionStatus] = useState<ActionStatus>(initialStatus);
   const [notionForm, setNotionForm] = useState<NotionTaskForm>(initialNotionForm);
   const [notionUrl, setNotionUrl] = useState('');
+  const [notionTaskLinks, setNotionTaskLinks] = useState<NotionTaskLink[]>([]);
   const [historyItems, setHistoryItems] = useState<RequestHistoryItem[]>([]);
   const [activeHistoryId, setActiveHistoryId] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -236,7 +368,8 @@ export default function Home() {
         );
       }
 
-      const generatedBrief = data.brief ?? '';
+      const generatedVacancyBriefs = normalizeGeneratedVacancyBriefs(data, data.brief ?? '', vacancies);
+      const generatedBrief = data.brief ?? combineVacancyBriefs(generatedVacancyBriefs);
       const durationMs = Math.round(performance.now() - requestStartedAt);
       const historyId = createHistoryId();
 
@@ -246,14 +379,28 @@ export default function Home() {
       });
 
       setBrief(generatedBrief);
+      setVacancyBriefs(generatedVacancyBriefs);
+      setNotionUrl('');
+      setNotionTaskLinks([]);
+      setNotionForm((currentForm) => {
+        if (currentForm.name.trim()) {
+          return currentForm;
+        }
+
+        return {
+          ...currentForm,
+          name: data.parentTitle ?? generatedVacancyBriefs[0]?.title ?? deriveHistoryTitle(vacancies),
+        };
+      });
       setActiveHistoryId(historyId);
       saveHistoryItem({
         id: historyId,
         createdAt: new Date().toISOString(),
-        title: deriveHistoryTitle(vacancies),
+        title: data.parentTitle ?? deriveHistoryTitle(vacancies),
         vacancies,
         systemPrompt,
         brief: generatedBrief,
+        vacancyBriefs: generatedVacancyBriefs,
         timings: {
           generateBriefMs: durationMs,
         },
@@ -264,10 +411,13 @@ export default function Home() {
       const resolvedLinksMessage = data.resolvedUrlCount
         ? ` Опрацьовано ${data.resolvedUrlCount} Ashby-лінків.`
         : '';
+      const separateBriefsMessage = generatedVacancyBriefs.length > 1
+        ? ` Створено ${generatedVacancyBriefs.length} окремі брифи.`
+        : '';
 
       setGenerateStatus({
         kind: 'success',
-        message: `Бриф готовий за ${formatDurationLabel(durationMs)}.${resolvedLinksMessage}${continuationMessage}`,
+        message: `Бриф готовий за ${formatDurationLabel(durationMs)}.${resolvedLinksMessage}${separateBriefsMessage}${continuationMessage}`,
       });
       setStep(2);
     } catch (error) {
@@ -298,6 +448,15 @@ export default function Home() {
     }
 
     const requestStartedAt = performance.now();
+    const requestVacancyBriefs = vacancyBriefs.length
+      ? vacancyBriefs
+      : [
+          {
+            brief,
+            id: 'vacancy-1',
+            title: notionForm.name.trim() || deriveHistoryTitle(vacancies),
+          },
+        ];
 
     setNotionStatus({ kind: 'loading', message: 'Створюємо задачу...' });
 
@@ -308,6 +467,7 @@ export default function Home() {
         body: JSON.stringify({
           ...notionForm,
           brief,
+          vacancyBriefs: requestVacancyBriefs,
         }),
       });
 
@@ -319,24 +479,54 @@ export default function Home() {
 
       const durationMs = Math.round(performance.now() - requestStartedAt);
       const taskUrl = data.url ?? data.fallbackUrl ?? '';
+      const taskLinks = data.tasks ?? (
+        data.id && taskUrl
+          ? [
+              {
+                fallbackUrl: data.fallbackUrl,
+                id: data.id,
+                kind: 'single' as const,
+                name: notionForm.name.trim(),
+                url: taskUrl,
+              },
+            ]
+          : []
+      );
 
       console.info('[Brief Generator] create-notion-task duration', {
         durationMs,
         serverDurationMs: data.durationMs ?? null,
         taskId: data.id ?? null,
+        taskCount: taskLinks.length,
       });
 
       setNotionUrl(taskUrl);
-      setNotionStatus({ kind: 'success', message: `Задачу створено за ${formatDurationLabel(durationMs)}.` });
+      setNotionTaskLinks(taskLinks);
+      const briefLocationMessage = data.warning
+        ? ` ${data.warning}`
+        : data.childTaskCount
+          ? ` Створено parent-задачу і ${data.childTaskCount} child-задачі з окремими брифами.`
+          : data.descriptionTooLong
+          ? ' Description містить коротку примітку, повний бриф додано в тіло задачі.'
+          : data.appendedBriefBlockCount
+            ? ' Повний бриф додано в тіло задачі.'
+            : '';
+
+      setNotionStatus({
+        kind: 'success',
+        message: `Задачу створено за ${formatDurationLabel(durationMs)}.${briefLocationMessage}`,
+      });
 
       if (activeHistoryId) {
         updateHistoryItem(activeHistoryId, {
           title: notionForm.name.trim() || deriveHistoryTitle(vacancies),
           brief,
+          vacancyBriefs: requestVacancyBriefs,
           notionForm,
           taskUrl,
           taskFallbackUrl: data.fallbackUrl,
           taskId: data.id,
+          taskUrls: taskLinks,
           timings: {
             createNotionTaskMs: durationMs,
           },
@@ -354,10 +544,45 @@ export default function Home() {
   }
 
   function handleBriefChange(value: string) {
+    const nextVacancyBriefs = vacancyBriefs.length === 1
+      ? [
+          {
+            ...vacancyBriefs[0],
+            brief: value,
+          },
+        ]
+      : vacancyBriefs;
+
     setBrief(value);
+    setVacancyBriefs(nextVacancyBriefs);
 
     if (activeHistoryId) {
-      updateHistoryItem(activeHistoryId, { brief: value });
+      updateHistoryItem(activeHistoryId, {
+        brief: value,
+        vacancyBriefs: nextVacancyBriefs,
+      });
+    }
+  }
+
+  function handleVacancyBriefChange(id: string, value: string) {
+    const nextVacancyBriefs = vacancyBriefs.map((vacancyBrief) =>
+      vacancyBrief.id === id
+        ? {
+            ...vacancyBrief,
+            brief: value,
+          }
+        : vacancyBrief,
+    );
+    const nextBrief = combineVacancyBriefs(nextVacancyBriefs);
+
+    setVacancyBriefs(nextVacancyBriefs);
+    setBrief(nextBrief);
+
+    if (activeHistoryId) {
+      updateHistoryItem(activeHistoryId, {
+        brief: nextBrief,
+        vacancyBriefs: nextVacancyBriefs,
+      });
     }
   }
 
@@ -365,10 +590,12 @@ export default function Home() {
     setStep(1);
     setVacancies('');
     setBrief('');
+    setVacancyBriefs([]);
     setGenerateStatus(initialStatus);
     setNotionStatus(initialStatus);
     setNotionForm(initialNotionForm);
     setNotionUrl('');
+    setNotionTaskLinks([]);
     setActiveHistoryId(historyItems[0]?.id ?? '');
   }
 
@@ -379,6 +606,7 @@ export default function Home() {
 
   function updateNotionForm(patch: Partial<NotionTaskForm>) {
     setNotionUrl('');
+    setNotionTaskLinks([]);
     setNotionStatus(initialStatus);
     setNotionForm((current) => ({ ...current, ...patch }));
   }
@@ -413,8 +641,10 @@ export default function Home() {
         {step === 2 ? (
           <Step2Brief
             brief={brief}
+            vacancyBriefs={vacancyBriefs}
             onBack={() => setStep(1)}
             onBriefChange={handleBriefChange}
+            onVacancyBriefChange={handleVacancyBriefChange}
             onNext={() => setStep(3)}
           />
         ) : null}
@@ -423,6 +653,7 @@ export default function Home() {
           <Step3Notion
             form={notionForm}
             notionUrl={notionUrl}
+            notionTaskLinks={notionTaskLinks}
             status={notionStatus}
             onBack={() => setStep(2)}
             onCreateNew={handleCreateNewTask}

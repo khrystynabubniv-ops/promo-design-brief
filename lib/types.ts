@@ -23,6 +23,21 @@ export type ActionStatus = {
   message?: string;
 };
 
+export type VacancyBrief = {
+  id: string;
+  title: string;
+  sourceUrl?: string;
+  brief: string;
+};
+
+export type NotionTaskLink = {
+  id: string;
+  name: string;
+  url: string;
+  fallbackUrl?: string;
+  kind: 'single' | 'parent' | 'child';
+};
+
 export type NotionTaskForm = {
   name: string;
   deadline: string;
@@ -44,9 +59,11 @@ export type RequestHistoryItem = {
   vacancies: string;
   systemPrompt: string;
   brief: string;
+  vacancyBriefs?: VacancyBrief[];
   notionForm?: NotionTaskForm;
   taskUrl?: string;
   taskFallbackUrl?: string;
   taskId?: string;
+  taskUrls?: NotionTaskLink[];
   timings: RequestTimings;
 };

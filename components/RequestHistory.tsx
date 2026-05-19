@@ -38,6 +38,7 @@ function trimPreview(value: string) {
 
 export function RequestHistory({ activeId, items, onClear, onSelect }: RequestHistoryProps) {
   const selectedItem = items.find((item) => item.id === activeId) ?? items[0];
+  const selectedChildTasks = selectedItem?.taskUrls?.filter((taskUrl) => taskUrl.kind === 'child') ?? [];
 
   return (
     <section className="rounded-lg border border-neutral-200 bg-white shadow-soft">
@@ -89,7 +90,9 @@ export function RequestHistory({ activeId, items, onClear, onSelect }: RequestHi
                   </span>
                   {item.taskUrl ? (
                     <span className={isSelected ? 'mt-3 inline-flex text-xs font-semibold text-white' : 'mt-3 inline-flex text-xs font-semibold text-neutral-950'}>
-                      Є задача в Notion
+                      {item.taskUrls?.length && item.taskUrls.length > 1
+                        ? `${item.taskUrls.length} задачі в Notion`
+                        : 'Є задача в Notion'}
                     </span>
                   ) : null}
                 </button>
@@ -118,6 +121,26 @@ export function RequestHistory({ activeId, items, onClear, onSelect }: RequestHi
                 </a>
               ) : null}
             </div>
+
+            {selectedChildTasks.length ? (
+              <div>
+                <p className="mb-2 text-sm font-semibold text-neutral-950">Child-задачі</p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {selectedChildTasks.map((taskUrl) => (
+                    <a
+                      className="inline-flex min-h-10 items-center justify-between gap-3 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+                      href={taskUrl.url}
+                      key={taskUrl.id}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <span className="min-w-0 truncate">{taskUrl.name}</span>
+                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">

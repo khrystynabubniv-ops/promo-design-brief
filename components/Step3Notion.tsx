@@ -2,12 +2,13 @@
 
 import { ArrowLeft, CheckCircle2, ExternalLink, Loader2, Plus } from 'lucide-react';
 import { FORMATS, PLATFORMS, PRIORITIES, TASK_TYPES } from '@/lib/constants';
-import type { ActionStatus, NotionTaskForm } from '@/lib/types';
+import type { ActionStatus, NotionTaskForm, NotionTaskLink } from '@/lib/types';
 
 type Step3NotionProps = {
   form: NotionTaskForm;
   status: ActionStatus;
   notionUrl: string;
+  notionTaskLinks: NotionTaskLink[];
   onBack: () => void;
   onCreateNew: () => void;
   onFormChange: (patch: Partial<NotionTaskForm>) => void;
@@ -18,12 +19,14 @@ export function Step3Notion({
   form,
   status,
   notionUrl,
+  notionTaskLinks,
   onBack,
   onCreateNew,
   onFormChange,
   onSubmit,
 }: Step3NotionProps) {
   const isLoading = status.kind === 'loading';
+  const childTaskLinks = notionTaskLinks.filter((taskLink) => taskLink.kind === 'child');
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,11 +50,33 @@ export function Step3Notion({
           <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
         </div>
         <h2 className="mt-5 text-2xl font-semibold tracking-normal text-neutral-950" id="task-created-title">
-          Задачу створено
+          {childTaskLinks.length ? 'Задачі створено' : 'Задачу створено'}
         </h2>
 
         {status.message ? (
           <p className="mt-2 text-sm font-medium text-neutral-500">{status.message}</p>
+        ) : null}
+
+        {childTaskLinks.length ? (
+          <div className="mx-auto mt-5 max-w-xl text-left">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+              Child-задачі
+            </p>
+            <div className="mt-3 space-y-2">
+              {childTaskLinks.map((taskLink) => (
+                <a
+                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+                  href={taskLink.url}
+                  key={taskLink.id}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <span className="min-w-0 truncate">{taskLink.name}</span>
+                  <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                </a>
+              ))}
+            </div>
+          </div>
         ) : null}
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
