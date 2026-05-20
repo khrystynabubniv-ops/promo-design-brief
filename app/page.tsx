@@ -16,9 +16,6 @@ import type {
   VacancyBrief,
 } from '@/lib/types';
 
-const PROMPT_STORAGE_KEY = 'brief_sys_prompt';
-const PROMPT_STORAGE_VERSION_KEY = 'brief_sys_prompt_version';
-const CURRENT_PROMPT_VERSION = 'creative-strategy-v2';
 const HISTORY_STORAGE_KEY = 'brief_request_history';
 const MAX_HISTORY_ITEMS = 30;
 
@@ -270,7 +267,7 @@ function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
 export default function Home() {
   const [step, setStep] = useState<AppStep>(1);
   const [vacancies, setVacancies] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
+  const systemPrompt = DEFAULT_PROMPT;
   const [brief, setBrief] = useState('');
   const [vacancyBriefs, setVacancyBriefs] = useState<VacancyBrief[]>([]);
   const [generateStatus, setGenerateStatus] = useState<ActionStatus>(initialStatus);
@@ -286,24 +283,6 @@ export default function Home() {
     () => process.env.NEXT_PUBLIC_APP_TITLE ?? 'Brief Generator',
     [],
   );
-
-  useEffect(() => {
-    const savedPrompt = window.localStorage.getItem(PROMPT_STORAGE_KEY);
-    const savedPromptVersion = window.localStorage.getItem(PROMPT_STORAGE_VERSION_KEY);
-
-    if (savedPrompt && savedPromptVersion === CURRENT_PROMPT_VERSION) {
-      setSystemPrompt(savedPrompt);
-      return;
-    }
-
-    window.localStorage.setItem(PROMPT_STORAGE_KEY, DEFAULT_PROMPT);
-    window.localStorage.setItem(PROMPT_STORAGE_VERSION_KEY, CURRENT_PROMPT_VERSION);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(PROMPT_STORAGE_KEY, systemPrompt);
-    window.localStorage.setItem(PROMPT_STORAGE_VERSION_KEY, CURRENT_PROMPT_VERSION);
-  }, [systemPrompt]);
 
   useEffect(() => {
     const savedHistory = parseHistoryItems(window.localStorage.getItem(HISTORY_STORAGE_KEY));
@@ -356,7 +335,6 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vacancies,
-          systemPrompt,
         }),
       });
 
@@ -617,7 +595,7 @@ export default function Home() {
         <header className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
-              Universe Group
+              Universe
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal text-neutral-950">
               {appTitle}
@@ -633,7 +611,6 @@ export default function Home() {
             systemPrompt={systemPrompt}
             vacancies={vacancies}
             onGenerate={handleGenerateBrief}
-            onSystemPromptChange={setSystemPrompt}
             onVacanciesChange={setVacancies}
           />
         ) : null}

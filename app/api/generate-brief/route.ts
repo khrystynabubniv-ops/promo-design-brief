@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_PROMPT } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -58,18 +59,20 @@ const BRIEF_GENERATION_GUARDRAILS = `Критичні правила, які м�
    - Не додавай нові слова до назв.
    - Якщо назва подана як Markdown heading, прибери тільки службові символи Markdown (#, **), але залиш саму назву без зміни.
 
-2. Бриф повинен бути читабельним Markdown:
+2. Відповідь повинна бути читабельним Markdown:
    - Не використовуй code fence.
    - Використовуй заголовки ## та ###.
-   - Кожну вакансію оформлюй як: ### **[точна назва вакансії]**
-   - Став порожній рядок між секціями, концептами та списками.
-   - Використовуй жирний текст для labels: **Лінки:**, **Формат:**, **Тексти:**.
-   - Використовуй bullet lists замість довгих суцільних абзаців.
+   - Кожну вакансію починай з: ## 🎯 [точна назва вакансії]
+   - Дотримуйся формату з Концептом 1, Концептом 2, Концептом 3 і Концептом 4.
+   - Став порожній рядок між секціями, концептами та варіаціями.
 
-3. Для кожної вакансії створи рівно 3 окремі креативні концепції.
-   - Якщо в інпуті 1 вакансія, має бути 3 концепції.
-   - Якщо в інпуті 3 вакансії, має бути 9 концепцій: по 3 для кожної вакансії.
-   - Не роби 3 концепції на весь пакет вакансій.
+3. Для кожної вакансії створи рівно 4 концепти у структурі з системного промпту.
+   - Концепт 1 має мати рівно 3 варіації.
+   - Концепт 2 має мати рівно 3 варіації.
+   - Концепт 3 має мати рівно 2 варіації.
+   - Концепт 4 має мати рівно 3 варіації.
+   - Не додавай візуальні ідеї, бриф для дизайнера, video/motion або додаткові концепції.
+   - Не роби 4 концепти на весь пакет вакансій.
    - Не об'єднуй кілька вакансій в один блок.
 
 4. Якщо у вхідному тексті є кілька вакансій, збережи всі вакансії в тому самому порядку.`;
@@ -665,7 +668,7 @@ ${BRIEF_GENERATION_GUARDRAILS}
     },
     {
       role: 'user',
-      content: `Ось вакансія:\n\n${vacancyInput.content}\n\nНапиши бриф на дизайнера тільки для цієї вакансії.`,
+      content: `Ось вакансія:\n\n${vacancyInput.content}\n\nЗгенеруй тексти для статичних рекламних креативів тільки для цієї вакансії.`,
     },
   ];
   let brief = '';
@@ -741,15 +744,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const { vacancies, systemPrompt } = await req.json();
+    const { vacancies } = await req.json();
 
-    if (!vacancies || !systemPrompt) {
+    if (!vacancies) {
       const durationMs = Date.now() - startedAt;
 
       console.warn('[generate-brief] missing request fields', { durationMs });
 
       return NextResponse.json(
-        { durationMs, error: 'Передайте vacancies і systemPrompt.' },
+        { durationMs, error: 'Передайте vacancies.' },
         { status: 400 },
       );
     }
@@ -770,7 +773,7 @@ export async function POST(req: Request) {
     const vacancyBriefs = await mapWithConcurrency(
       vacancyInputs,
       BRIEF_GENERATION_CONCURRENCY,
-      (vacancyInput) => generateBriefForVacancy(headers, systemPrompt, vacancyInput),
+      (vacancyInput) => generateBriefForVacancy(headers, DEFAULT_PROMPT, vacancyInput),
     );
     const continuationAttempts = vacancyBriefs.reduce(
       (total, vacancyBrief) => total + vacancyBrief.continuationAttempts,

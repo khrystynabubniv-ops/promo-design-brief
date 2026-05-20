@@ -114,7 +114,7 @@ export function Step3Notion({
             <input
               className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
               id="taskName"
-              placeholder="Promo вакансії Universe Group"
+              placeholder="Promo вакансії Universe"
               value={form.name}
               onChange={(event) => onFormChange({ name: event.target.value })}
             />

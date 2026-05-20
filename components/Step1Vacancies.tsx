@@ -8,7 +8,6 @@ type Step1VacanciesProps = {
   systemPrompt: string;
   status: ActionStatus;
   onVacanciesChange: (value: string) => void;
-  onSystemPromptChange: (value: string) => void;
   onGenerate: () => void;
 };
 
@@ -17,7 +16,6 @@ export function Step1Vacancies({
   systemPrompt,
   status,
   onVacanciesChange,
-  onSystemPromptChange,
   onGenerate,
 }: Step1VacanciesProps) {
   const isLoading = status.kind === 'loading';
@@ -32,9 +30,9 @@ export function Step1Vacancies({
         </summary>
         <div className="border-t border-neutral-200 p-5">
           <textarea
-            className="min-h-96 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+            className="min-h-96 w-full rounded-md border border-neutral-300 bg-neutral-100 p-4 text-sm leading-6 text-neutral-900 outline-none"
+            readOnly
             value={systemPrompt}
-            onChange={(event) => onSystemPromptChange(event.target.value)}
           />
         </div>
       </details>
