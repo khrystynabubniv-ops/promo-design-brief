@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { markdownToNotionBlocks, type NotionBlock } from '@/lib/markdownToNotionBlocks';
 import {
   BRAND_DESIGN_HUB_DATABASE_ID,
   BRAND_DESIGN_HUB_VIEW_ID,
@@ -32,7 +33,6 @@ type NotionApiResponse = {
 type NotionPageProperties = Record<string, unknown>;
 type NotionHeaders = Record<string, string>;
 type NotionRichText = { text: { content: string } };
-type NotionBlock = Record<string, unknown>;
 
 type IncomingVacancyBrief = {
   brief: string;
@@ -102,10 +102,6 @@ function buildDescriptionRichText() {
 }
 
 function buildFullBriefBlocks(content: string): NotionBlock[] {
-  const normalizedContent = content.replace(/\r\n/g, '\n').trim();
-  const paragraphs = normalizedContent
-    ? normalizedContent.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
-    : [''];
   const blocks: NotionBlock[] = [
     {
       object: 'block',
@@ -116,22 +112,11 @@ function buildFullBriefBlocks(content: string): NotionBlock[] {
       object: 'block',
       type: 'heading_2',
       heading_2: {
-        rich_text: [{ text: { content: 'Full design brief' } }],
+        rich_text: [{ type: 'text', text: { content: 'Full design brief' } }],
       },
     },
+    ...markdownToNotionBlocks(content),
   ];
-
-  paragraphs.forEach((paragraph) => {
-    splitContentIntoChunks(paragraph).forEach((chunk) => {
-      blocks.push({
-        object: 'block',
-        type: 'paragraph',
-        paragraph: {
-          rich_text: [{ text: { content: chunk } }],
-        },
-      });
-    });
-  });
 
   return blocks;
 }
