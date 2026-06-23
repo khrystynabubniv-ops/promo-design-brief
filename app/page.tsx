@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Layers3 } from 'lucide-react';
 import { Stepper } from '@/components/Stepper';
 import { Step1Vacancies } from '@/components/Step1Vacancies';
@@ -26,6 +27,13 @@ const MAX_HISTORY_ITEMS = 30;
 const initialStatus: ActionStatus = { kind: 'idle' };
 
 type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch';
+
+const toolPaths: Record<ActiveTool, string> = {
+  brief: '/brief',
+  hub: '/',
+  merch: '/merch',
+  smm: '/smm',
+};
 
 const initialNotionForm: NotionTaskForm = {
   name: '',
@@ -270,8 +278,26 @@ function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
   }
 }
 
+function getActiveToolFromPathname(pathname: string | null): ActiveTool {
+  if (pathname === '/brief') {
+    return 'brief';
+  }
+
+  if (pathname === '/smm') {
+    return 'smm';
+  }
+
+  if (pathname === '/merch') {
+    return 'merch';
+  }
+
+  return 'hub';
+}
+
 export default function Home() {
-  const [activeTool, setActiveTool] = useState<ActiveTool>('hub');
+  const router = useRouter();
+  const pathname = usePathname();
+  const activeTool = getActiveToolFromPathname(pathname);
   const [step, setStep] = useState<AppStep>(1);
   const [vacancies, setVacancies] = useState('');
   const systemPrompt = DEFAULT_PROMPT;
@@ -595,9 +621,13 @@ export default function Home() {
     setActiveHistoryId(historyItems[0]?.id ?? '');
   }
 
+  function openTool(tool: ActiveTool) {
+    router.push(toolPaths[tool]);
+  }
+
   function openBriefGenerator() {
-    setActiveTool('brief');
     setStep(1);
+    openTool('brief');
   }
 
   function clearHistory() {
@@ -629,8 +659,8 @@ export default function Home() {
         {activeTool === 'hub' ? (
           <ToolHub
             onOpenBrief={openBriefGenerator}
-            onOpenMerchIdeas={() => setActiveTool('merch')}
-            onOpenSmm={() => setActiveTool('smm')}
+            onOpenMerchIdeas={() => openTool('merch')}
+            onOpenSmm={() => openTool('smm')}
           />
         ) : null}
 
@@ -639,7 +669,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
-                onClick={() => setActiveTool('hub')}
+                onClick={() => openTool('hub')}
                 type="button"
               >
                 <Layers3 className="h-4 w-4" aria-hidden="true" />
@@ -693,11 +723,11 @@ export default function Home() {
         ) : null}
 
         {activeTool === 'smm' ? (
-          <SmmGenerator onBackToHub={() => setActiveTool('hub')} />
+          <SmmGenerator onBackToHub={() => openTool('hub')} />
         ) : null}
 
         {activeTool === 'merch' ? (
-          <MerchIdeasGenerator onBackToHub={() => setActiveTool('hub')} />
+          <MerchIdeasGenerator onBackToHub={() => openTool('hub')} />
         ) : null}
       </div>
     </main>
