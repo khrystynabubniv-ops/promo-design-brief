@@ -725,17 +725,22 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <header className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
-              Universe
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-neutral-950">
-              {appTitle}
-            </h1>
+    <main className="min-h-screen bg-[#eceef1] px-4 py-5 font-[Onest,system-ui,sans-serif] text-[#181b22] sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
+        <header className="flex min-h-[60px] items-center justify-between gap-4 rounded-[16px] border border-[#e7e9ee] bg-white px-4 py-3 shadow-[0_10px_30px_rgba(16,24,40,.05)] sm:px-5">
+          <div className="flex min-w-0 items-center gap-[13px]">
+            <span className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg bg-[#1d4ed8] text-[15px] font-extrabold text-white">
+              U
+            </span>
+            <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+              <span className="text-[15px] font-bold text-[#181b22]">Universe</span>
+              <span className="hidden text-[#c2c8d0] sm:inline">/</span>
+              <span className="truncate text-[15px] font-semibold text-[#5b6472]">{appTitle}</span>
+            </div>
           </div>
+          <span className="hidden h-[34px] items-center rounded-[9px] border border-[#e7e9ee] bg-[#fafbfc] px-3 text-[13px] font-semibold text-[#5b6472] sm:inline-flex">
+            PR Comms tools
+          </span>
         </header>
 
         {activeTool === 'hub' ? (
@@ -751,11 +756,11 @@ export default function Home() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                className="inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#e7e9ee] bg-white px-4 text-sm font-semibold text-[#2a3038] transition hover:bg-[#f5f6f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
                 onClick={() => openTool('hub')}
                 type="button"
               >
-                <Layers3 className="h-4 w-4" aria-hidden="true" />
+                <Layers3 className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
                 До пулу тулів
               </button>
             </div>
