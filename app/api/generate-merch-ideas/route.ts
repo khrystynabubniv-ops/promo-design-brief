@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           durationMs: Date.now() - startedAt,
-          error: 'Перевірте поля форми: аудиторія, привід і напрямок обовʼязкові, кількість ідей має бути від 1 до 10.',
+          error: 'Перевірте поля форми: аудиторія, привід і напрямок обовʼязкові, кількість ідей має бути від 1 до 5.',
         },
         { status: 400 },
       );

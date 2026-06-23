@@ -33,6 +33,7 @@ Optional environment variables:
 - `OPENROUTER_TEMPERATURE` defaults to `0.8`
 - `OPENROUTER_MAX_TOKENS` defaults to `8000`
 - `OPENROUTER_TIMEOUT_MS` defaults to `240000`
+- `OPENROUTER_MERCH_TIMEOUT_MS` defaults to `60000`
 - `OPENROUTER_SITE_URL` identifies the app in OpenRouter analytics
 
 The vacancies field accepts plain vacancy text or public Ashby vacancy links.
@@ -46,7 +47,7 @@ The SMM tool uses the same server-side OpenRouter key. It returns validated JSON
 - `carousel`: idea, audience, slides, caption, CTA options, and alternative first-slide headlines.
 - `both`: two separate OpenRouter calls, one for caption and one for carousel.
 
-Generated SMM results are stored in the browser history panel for the current user/device.
+Generated SMM results are stored in the server-side history panel for 30 days.
 
 Before production use, fill the reference post texts in `lib/referenceExamples.ts`. URLs are already included, but Instagram blocks automated reads, so the `text` fields must be pasted manually.
 
@@ -54,6 +55,7 @@ Before production use, fill the reference post texts in `lib/referenceExamples.t
 
 The merch tool uses the same server-side OpenRouter key.
 It enables the OpenRouter `openrouter:web_search` server tool and returns validated JSON cards with a company case, fit rationale, packaging idea, and source link.
+For speed, it defaults to 3 ideas, caps requests at 5 ideas, uses low web-search context, and has its own shorter timeout.
 
 ## Server-side History
 

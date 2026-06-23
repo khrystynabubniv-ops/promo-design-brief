@@ -19,6 +19,7 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-4.6';
 const DEFAULT_OPENROUTER_TEMPERATURE = 0.8;
 const DEFAULT_OPENROUTER_TIMEOUT_MS = 120000;
+const DEFAULT_MERCH_TIMEOUT_MS = 60000;
 const OPENROUTER_RETRY_DELAYS_MS = [800, 1800];
 const CAROUSEL_VARIANT_CONCURRENCY = 2;
 
@@ -99,12 +100,22 @@ function getOpenRouterTimeoutMs() {
     : DEFAULT_OPENROUTER_TIMEOUT_MS;
 }
 
+function getMerchOpenRouterTimeoutMs() {
+  const configuredValue = Number.parseInt(process.env.OPENROUTER_MERCH_TIMEOUT_MS ?? '', 10);
+
+  if (Number.isFinite(configuredValue) && configuredValue > 0) {
+    return configuredValue;
+  }
+
+  return Math.min(getOpenRouterTimeoutMs(), DEFAULT_MERCH_TIMEOUT_MS);
+}
+
 function getMaxTokens(format: SmmAtomicFormat) {
   return format === 'caption' ? 1500 : 5000;
 }
 
 function getMerchMaxTokens(ideasCount: number) {
-  return Math.min(14000, Math.max(4000, ideasCount * 1400 + 1500));
+  return Math.min(4500, Math.max(1600, ideasCount * 550 + 500));
 }
 
 function getHeaders() {
@@ -498,13 +509,14 @@ export async function generateSmmResult(params: SmmGenerateRequest): Promise<Smm
 }
 
 function buildMerchSystemPrompt(ideasCount: number) {
-  return `Ти стратег із корпоративного мерчу та подарунків. На основі заданих аудиторії, приводу, напрямку та бюджету згенеруй ${ideasCount} конкретних ідей. Кожну ідею прив'яжи до реального кейсу конкретної компанії, знайденого через вебпошук, із робочим посиланням. Для кожної поясни, чому вона пасує саме цій аудиторії, і запропонуй формат та пакування. Наведені бренди використовуй як орієнтир стилю.
+  return `Ти стратег із корпоративного мерчу та подарунків. Швидко згенеруй ${ideasCount} конкретних ідей. Кожну ідею прив'яжи до реального кейсу конкретної компанії, знайденого через вебпошук, із робочим посиланням. Наведені бренди використовуй як орієнтир стилю.
 
 Критичні правила:
 - Обов'язково використай web_search для пошуку реальних кейсів компаній.
-- Використай максимум 5 пошукових запитів.
+- Використай максимум 2 пошукові запити.
+- Пиши стисло: title до 8 слів; case, why_fits і format_packaging по 1 короткому реченню.
 - Не вигадуй source_url. Якщо не знайшов робоче джерело для конкретного кейсу, залиш source_url порожнім рядком.
-- Відповідай ВИКЛЮЧНО валідним JSON, без markdown, без бектиків і без пояснень.
+- Відповідай ВИКЛЮЧНО компактним валідним JSON, без markdown, без бектиків і без пояснень.
 - Поверни рівно ${ideasCount} ідей, якщо це можливо.
 - Пиши українською.
 
@@ -556,15 +568,15 @@ function parseMerchIdeasResult(content: string): MerchIdeasResult {
 }
 
 async function requestOpenRouterMerchIdeas(params: MerchIdeasRequest) {
-  const timeoutMs = getOpenRouterTimeoutMs();
+  const timeoutMs = getMerchOpenRouterTimeoutMs();
   const tools: OpenRouterTool[] = [
     {
       type: 'openrouter:web_search',
       parameters: {
         engine: 'auto',
-        max_results: 5,
-        max_total_results: 25,
-        search_context_size: 'medium',
+        max_results: 3,
+        max_total_results: Math.max(4, Math.min(8, params.ideasCount * 2)),
+        search_context_size: 'low',
       },
     },
   ];

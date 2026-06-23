@@ -28,7 +28,7 @@ const initialForm: MerchIdeasRequest = {
   budget: '',
   quantity: '',
   referenceBrands: '',
-  ideasCount: 5,
+  ideasCount: 3,
 };
 
 type MerchIdeasGeneratorProps = {
@@ -90,10 +90,10 @@ function trimPreview(value: string) {
 
 function normalizeIdeasCount(value: number) {
   if (!Number.isFinite(value)) {
-    return 5;
+    return 3;
   }
 
-  return Math.min(10, Math.max(1, Math.round(value)));
+  return Math.min(5, Math.max(1, Math.round(value)));
 }
 
 function buildFormPayload(form: MerchIdeasRequest): MerchIdeasRequest {
@@ -131,7 +131,7 @@ function parseServerForm(value: unknown): MerchIdeasRequest | null {
     audience,
     budget: getStringField(value, 'budget'),
     direction,
-    ideasCount: normalizeIdeasCount(Number(value.ideasCount ?? 5)),
+    ideasCount: normalizeIdeasCount(Number(value.ideasCount ?? 3)),
     occasion,
     quantity: getStringField(value, 'quantity'),
     referenceBrands: getStringField(value, 'referenceBrands'),
@@ -418,7 +418,7 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
               <input
                 className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
                 id="merchIdeasCount"
-                max={10}
+                max={5}
                 min={1}
                 type="number"
                 value={form.ideasCount}

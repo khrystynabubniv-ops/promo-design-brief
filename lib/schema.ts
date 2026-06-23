@@ -84,7 +84,7 @@ export const merchIdeasRequestSchema = z.object({
   budget: z.string().trim().optional().default(''),
   quantity: z.string().trim().optional().default(''),
   referenceBrands: z.string().trim().optional().default(''),
-  ideasCount: z.coerce.number().int().min(1).max(10).default(5),
+  ideasCount: z.coerce.number().int().min(1).max(5).default(3),
 });
 
 export const merchIdeaSchema = z.object({
