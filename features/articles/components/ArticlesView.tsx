@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   FileText,
@@ -1686,13 +1686,33 @@ function ParagraphEditor({
   paragraph: string;
 }) {
   const [value, setValue] = useState(paragraph);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const cleanValue = value.trim();
+  const headingMatch = /^(#{1,3})\s+/.exec(cleanValue);
+  const isDivider = /^-{3,}$/.test(cleanValue);
+  const minHeight = isDivider ? 24 : headingMatch ? 42 : 32;
 
   useEffect(() => {
     setValue(paragraph);
   }, [paragraph]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`;
+  }, [minHeight, value]);
+
   return (
-    <div className="group relative">
+    <div className={[
+      'group relative',
+      isDivider ? 'my-4' : headingMatch ? 'mb-3 mt-7' : 'mb-4',
+    ].join(' ')}
+    >
       <div className="absolute right-[-6px] top-[-2px] z-[2] flex items-center gap-3 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
         <button
           className="inline-flex h-[26px] items-center gap-1.5 rounded-[7px] border border-[#e2e9fb] bg-white px-[9px] text-[11.5px] font-semibold text-[#1d4ed8] shadow-[0_2px_8px_rgba(16,24,40,.08)] transition hover:bg-[#f7f9ff] disabled:cursor-not-allowed disabled:text-[#9aa1ad]"
@@ -1709,7 +1729,17 @@ function ParagraphEditor({
         </button>
       </div>
       <textarea
-        className="mb-[22px] min-h-[132px] w-full resize-y border-0 bg-transparent p-0 font-[Literata,serif] text-[19px] leading-[1.72] text-[#2c313a] outline-none transition focus:bg-white/40"
+        className={[
+          'w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-[Literata,serif] outline-none transition focus:bg-white/40',
+          isDivider
+            ? 'text-[15px] leading-6 text-[#a4abb6]'
+            : headingMatch
+              ? 'text-[22px] font-semibold leading-[1.35] text-[#20242c]'
+              : 'text-[19px] leading-[1.72] text-[#2c313a]',
+        ].join(' ')}
+        ref={textareaRef}
+        rows={1}
+        style={{ minHeight }}
         value={value}
         onBlur={() => onEdit(index, value)}
         onChange={(event) => setValue(event.target.value)}
