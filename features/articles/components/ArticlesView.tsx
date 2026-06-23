@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   FileText,
+  History,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Trash2,
   UserPlus,
   WandSparkles,
@@ -25,6 +27,8 @@ import {
 import type { ActionStatus, GenerationHistoryItem } from '@/lib/types';
 import type { Brief, Draft, DraftVersion, Format, SpeakerCard, StoredSpeakerCard } from '../types';
 
+const DRAFT_HISTORY_LIMIT = 20;
+const DRAFT_HISTORY_STORAGE_KEY = 'articles_draft_history';
 const DRAFT_STORAGE_KEY = 'articles_current_draft';
 
 type ArticlesViewProps = {
@@ -58,6 +62,13 @@ type SaveNotionResponse = {
   durationMs?: number;
   error?: string;
   url?: string;
+};
+
+type DraftHistoryItem = {
+  draft: Draft;
+  id: string;
+  savedAt: string;
+  title: string;
 };
 
 const initialStatus: ActionStatus = { kind: 'idle' };
@@ -105,24 +116,26 @@ function getSpeakerGradient(index: number) {
   return gradients[index % gradients.length];
 }
 
-const initialBrief: Brief = {
-  format: 'press_release',
-  variant: 'full',
-  speakerId: null,
-  topic: '',
-  thesis: [''],
-  mustIncludeFacts: [
-    {
-      id: createId(),
-      label: '',
-      value: '',
-    },
-  ],
-  quotes: [],
-  targetMedia: '',
-  lengthHint: 'standard',
-  links: [''],
-};
+function createInitialBrief(): Brief {
+  return {
+    format: 'press_release',
+    variant: 'full',
+    speakerId: null,
+    topic: '',
+    thesis: [''],
+    mustIncludeFacts: [
+      {
+        id: createId(),
+        label: '',
+        value: '',
+      },
+    ],
+    quotes: [],
+    targetMedia: '',
+    lengthHint: 'standard',
+    links: [''],
+  };
+}
 
 function createId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -229,12 +242,88 @@ function parseStoredDraft(value: string | null) {
   return null;
 }
 
+function parseStoredDraftHistory(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((item): item is DraftHistoryItem => Boolean(
+        item &&
+        typeof item === 'object' &&
+        typeof (item as Partial<DraftHistoryItem>).id === 'string' &&
+        typeof (item as Partial<DraftHistoryItem>).savedAt === 'string' &&
+        typeof (item as Partial<DraftHistoryItem>).title === 'string' &&
+        (item as Partial<DraftHistoryItem>).draft &&
+        typeof (item as Partial<DraftHistoryItem>).draft === 'object' &&
+        Array.isArray((item as Partial<DraftHistoryItem>).draft?.versions),
+      ))
+      .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())
+      .slice(0, DRAFT_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function getDraftTitle(draft: Draft) {
+  return draft.brief.topic.trim() || getFormatLabel(draft.brief.format);
+}
+
+function getDraftPreview(draft: Draft) {
+  const activeVersion = getActiveVersion(draft);
+
+  return activeVersion?.content.replace(/\s+/g, ' ').trim().slice(0, 110) || 'Без тексту';
+}
+
+function draftHasContent(draft: Draft | null) {
+  return Boolean(getActiveVersion(draft)?.content.trim());
+}
+
+function createDraftHistoryItem(draft: Draft, savedAt = new Date().toISOString()): DraftHistoryItem {
+  return {
+    draft,
+    id: draft.id,
+    savedAt,
+    title: getDraftTitle(draft),
+  };
+}
+
+function archiveDraft(draft: Draft | null, history: DraftHistoryItem[]) {
+  if (!draft || !draftHasContent(draft)) {
+    return history;
+  }
+
+  const item = createDraftHistoryItem(draft);
+
+  return [
+    item,
+    ...history.filter((historyItem) => historyItem.id !== draft.id),
+  ].slice(0, DRAFT_HISTORY_LIMIT);
+}
+
+function writeStoredDraftHistory(history: DraftHistoryItem[]) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(DRAFT_HISTORY_STORAGE_KEY, JSON.stringify(history));
+}
+
 export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
-  const [brief, setBrief] = useState<Brief>(initialBrief);
+  const [brief, setBrief] = useState<Brief>(() => createInitialBrief());
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [draftHistory, setDraftHistory] = useState<DraftHistoryItem[]>([]);
   const [speakers, setSpeakers] = useState<StoredSpeakerCard[]>([]);
   const [status, setStatus] = useState<ActionStatus>(initialStatus);
   const [exportStatus, setExportStatus] = useState<ActionStatus>(initialStatus);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [speakerModalMode, setSpeakerModalMode] = useState<'create' | 'edit' | null>(null);
   const [editingSpeaker, setEditingSpeaker] = useState<StoredSpeakerCard | null>(null);
   const [regeneratingParagraph, setRegeneratingParagraph] = useState<number | null>(null);
@@ -246,17 +335,68 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
   );
   const selectedSpeaker = speakers.find((speaker) => speaker.id === brief.speakerId) ?? null;
   const canGenerate = Boolean(brief.topic.trim()) && status.kind !== 'loading';
+  const visibleHistoryCount = draftHistory.length + (
+    draftHasContent(draft) && !draftHistory.some((item) => item.id === draft?.id) ? 1 : 0
+  );
 
   useEffect(() => {
     setSpeakers(listSpeakerCards());
     setDraft(parseStoredDraft(window.localStorage.getItem(DRAFT_STORAGE_KEY)));
+    setDraftHistory(parseStoredDraftHistory(window.localStorage.getItem(DRAFT_HISTORY_STORAGE_KEY)));
   }, []);
 
   useEffect(() => {
     if (draft) {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } else {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY);
     }
   }, [draft]);
+
+  function persistDraftHistory(nextHistory: DraftHistoryItem[]) {
+    setDraftHistory(nextHistory);
+    writeStoredDraftHistory(nextHistory);
+  }
+
+  function archiveCurrentDraft(nextDraft = draft) {
+    const nextHistory = archiveDraft(nextDraft, draftHistory);
+
+    if (nextHistory !== draftHistory) {
+      persistDraftHistory(nextHistory);
+    }
+  }
+
+  function clearWorkspace() {
+    archiveCurrentDraft();
+    setBrief(createInitialBrief());
+    setDraft(null);
+    setExportStatus(initialStatus);
+    setRegeneratingParagraph(null);
+    setStatus(initialStatus);
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+  }
+
+  function handleBackToHub() {
+    clearWorkspace();
+    onBackToHub();
+  }
+
+  function restoreDraftFromHistory(item: DraftHistoryItem) {
+    if (draft?.id !== item.id) {
+      archiveCurrentDraft();
+    }
+
+    setBrief(item.draft.brief);
+    setDraft(item.draft);
+    setExportStatus(initialStatus);
+    setHistoryOpen(false);
+    setRegeneratingParagraph(null);
+    setStatus({ kind: 'success', message: 'Чернетку відновлено з історії.' });
+  }
+
+  function removeDraftFromHistory(id: string) {
+    persistDraftHistory(draftHistory.filter((item) => item.id !== id));
+  }
 
   function reloadSpeakers() {
     setSpeakers(listSpeakerCards());
@@ -338,6 +478,7 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
         throw new Error(data.error ?? `Не вдалося згенерувати текст. Сервер повернув ${response.status}.`);
       }
 
+      archiveCurrentDraft();
       setDraft(data.result.draft);
       setStatus({
         kind: 'success',
@@ -473,7 +614,7 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
         <div className="flex min-w-0 items-center gap-[13px]">
           <button
             className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg bg-[#1d4ed8] text-[15px] font-extrabold tracking-[-0.02em] text-white transition hover:bg-[#1a44bd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
-            onClick={onBackToHub}
+            onClick={handleBackToHub}
             title="До пулу тулів"
             type="button"
           >
@@ -487,6 +628,19 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            className="inline-flex h-[34px] items-center gap-2 rounded-[9px] border border-[#e7e9ee] bg-white px-3.5 text-[13px] font-semibold text-[#2a3038] transition hover:bg-[#f5f6f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
+            onClick={() => setHistoryOpen(true)}
+            type="button"
+          >
+            <History className="h-3.5 w-3.5 text-[#8b94a3]" aria-hidden="true" />
+            Історія
+            {visibleHistoryCount ? (
+              <span className="ml-0.5 rounded-md bg-[#eef3ff] px-1.5 py-0.5 text-[11px] font-bold text-[#1d4ed8]">
+                {visibleHistoryCount}
+              </span>
+            ) : null}
+          </button>
           <div className="hidden h-[34px] items-center gap-2 rounded-[9px] border border-[#e7e9ee] bg-[#fafbfc] px-3 sm:flex">
             <span className="text-[13px] font-semibold text-[#1d4ed8]">
               {draft ? `v${draft.versions.findIndex((version) => version.id === draft.activeVersionId) + 1}` : 'v0'}
@@ -530,10 +684,7 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
             onAddSpeaker={openCreateSpeakerModal}
             onEditSpeaker={openEditSpeakerModal}
             onGenerate={handleGenerate}
-            onReset={() => {
-              setBrief(initialBrief);
-              setStatus(initialStatus);
-            }}
+            onReset={clearWorkspace}
             onUpdateBrief={updateBrief}
             onUpdateFormat={updateFormat}
           />
@@ -565,6 +716,18 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
           onSave={handleSpeakerSaved}
         />
       ) : null}
+
+      {historyOpen ? (
+        <DraftHistoryDrawer
+          activeDraftId={draft?.id ?? null}
+          currentDraft={draft}
+          history={draftHistory}
+          speakers={speakers}
+          onClose={() => setHistoryOpen(false)}
+          onRemove={removeDraftFromHistory}
+          onRestore={restoreDraftFromHistory}
+        />
+      ) : null}
     </div>
   );
 }
@@ -582,6 +745,250 @@ type BriefFormProps = {
   onUpdateBrief: (patch: Partial<Brief>) => void;
   onUpdateFormat: (format: Format) => void;
 };
+
+type DraftHistoryDrawerProps = {
+  activeDraftId: string | null;
+  currentDraft: Draft | null;
+  history: DraftHistoryItem[];
+  speakers: StoredSpeakerCard[];
+  onClose: () => void;
+  onRemove: (id: string) => void;
+  onRestore: (item: DraftHistoryItem) => void;
+};
+
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('uk-UA', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
+function getHistoryGroupLabel(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Раніше';
+  }
+
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfItemDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  if (startOfItemDay === startOfToday) {
+    return 'Сьогодні';
+  }
+
+  if (startOfItemDay === startOfToday - dayMs) {
+    return 'Учора';
+  }
+
+  return 'Раніше';
+}
+
+function getHistorySpeakerName(item: DraftHistoryItem, speakers: StoredSpeakerCard[]) {
+  if (item.draft.brief.format === 'press_release') {
+    return 'Інституційний голос';
+  }
+
+  const speaker = speakers.find((card) => card.id === item.draft.brief.speakerId);
+
+  return speaker?.name ?? 'Спікер не обраний';
+}
+
+function DraftHistoryDrawer({
+  activeDraftId,
+  currentDraft,
+  history,
+  speakers,
+  onClose,
+  onRemove,
+  onRestore,
+}: DraftHistoryDrawerProps) {
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLocaleLowerCase('uk-UA');
+  const currentHistoryItem = currentDraft && draftHasContent(currentDraft)
+    ? createDraftHistoryItem(currentDraft, getActiveVersion(currentDraft)?.createdAt ?? new Date().toISOString())
+    : null;
+  const visibleHistory = currentHistoryItem
+    ? [
+        currentHistoryItem,
+        ...history.filter((item) => item.id !== currentHistoryItem.id),
+      ]
+    : history;
+  const filteredHistory = visibleHistory.filter((item) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    const searchable = [
+      item.title,
+      getFormatLabel(item.draft.brief.format),
+      getHistorySpeakerName(item, speakers),
+      getDraftPreview(item.draft),
+    ].join(' ').toLocaleLowerCase('uk-UA');
+
+    return searchable.includes(normalizedQuery);
+  });
+  const groupedHistory = filteredHistory.reduce<Array<{ group: string; items: DraftHistoryItem[] }>>(
+    (groups, item) => {
+      const group = getHistoryGroupLabel(item.savedAt);
+      const currentGroup = groups.find((candidate) => candidate.group === group);
+
+      if (currentGroup) {
+        currentGroup.items.push(item);
+      } else {
+        groups.push({ group, items: [item] });
+      }
+
+      return groups;
+    },
+    [],
+  );
+
+  return (
+    <div className="fixed inset-0 z-[90] flex justify-end">
+      <button
+        aria-label="Закрити історію"
+        className="absolute inset-0 bg-[rgba(20,23,29,.38)] backdrop-blur-[2px]"
+        onClick={onClose}
+        type="button"
+      />
+      <aside className="ct-scroll relative flex w-[420px] max-w-[90vw] flex-col border-l border-[#e7e9ee] bg-white shadow-[-12px_0_40px_rgba(16,24,40,.16)]">
+        <div className="flex-none border-b border-[#eef0f3] px-[22px] pb-4 pt-5">
+          <div className="mb-3.5 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold tracking-[-0.01em] text-[#181b22]">Історія матеріалів</h2>
+              <p className="mt-0.5 text-[12.5px] text-[#9aa1ad]">
+                Відкрий, щоб повернутися й продовжити роботу
+              </p>
+            </div>
+            <button
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-[9px] border border-[#eef0f3] bg-white text-[#8b94a3] transition hover:bg-[#f5f6f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex h-9 items-center gap-2 rounded-[10px] border border-[#e7e9ee] bg-[#fafbfc] px-3">
+            <Search className="h-[15px] w-[15px] flex-none text-[#b8bfc9]" aria-hidden="true" />
+            <input
+              className="min-w-0 flex-1 border-none bg-transparent text-[13px] text-[#2a3038] outline-none placeholder:text-[#aeb5c0]"
+              placeholder="Пошук за темою або спікером"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="ct-scroll flex-1 overflow-y-auto px-4 py-3.5 pb-[22px]">
+          {!visibleHistory.length ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+              <FileText className="h-9 w-9 text-[#c8cdd6]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-[#5b6472]">Історія поки порожня</p>
+              <p className="mt-1 max-w-[260px] text-[12.5px] leading-5 text-[#9aa1ad]">
+                Після очищення або виходу поточна чернетка збережеться тут.
+              </p>
+            </div>
+          ) : groupedHistory.length ? (
+            groupedHistory.map(({ group, items }) => (
+              <div key={group}>
+                <div className="px-1.5 pb-[9px] pt-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#b0b7c2]">
+                  {group}
+                </div>
+                {items.map((item) => {
+                  const active = activeDraftId === item.id;
+                  const activeVersion = getActiveVersion(item.draft);
+                  const versionIndex = item.draft.versions.findIndex(
+                    (version) => version.id === item.draft.activeVersionId,
+                  );
+                  const speakerName = getHistorySpeakerName(item, speakers);
+
+                  return (
+                    <div
+                      className={[
+                        'group/history mb-[9px] rounded-[13px] border p-[13px] transition',
+                        active
+                          ? 'border-[1.5px] border-[#1d4ed8] bg-[#f7f9ff]'
+                          : 'border-[#e7e9ee] bg-white hover:border-[#cdd3dc] hover:bg-[#fafbfc]',
+                      ].join(' ')}
+                      key={item.id}
+                    >
+                      <button
+                        className="block w-full text-left focus-visible:outline-none"
+                        onClick={() => onRestore(item)}
+                        type="button"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={[
+                            'rounded-md px-2 py-1 text-[10.5px] font-bold uppercase tracking-[0.03em]',
+                            active ? 'bg-[#e7eeff] text-[#1d4ed8]' : 'bg-[#f1f3f6] text-[#5b6472]',
+                          ].join(' ')}
+                          >
+                            {getFormatLabel(item.draft.brief.format)}
+                          </span>
+                          {active ? (
+                            <span className="ml-auto text-[11px] font-semibold text-[#1d4ed8]">
+                              відкрито зараз
+                            </span>
+                          ) : (
+                            <span className="ml-auto text-[11px] font-medium text-[#9aa1ad]">
+                              {formatHistoryDate(item.savedAt)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-[9px] text-sm font-semibold leading-[1.35] text-[#1a1d24]">
+                          {item.title}
+                        </div>
+                        <div className="mt-[9px] flex flex-wrap items-center gap-2 text-xs text-[#7b8392]">
+                          <span>{speakerName}</span>
+                          <span className="text-[#cdd3dc]">·</span>
+                          <span>v{versionIndex >= 0 ? versionIndex + 1 : 1}</span>
+                          <span className="text-[#cdd3dc]">·</span>
+                          <span>{activeVersion?.manualEdits ?? 0} правок</span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-[12.5px] leading-5 text-[#9aa1ad]">
+                          {getDraftPreview(item.draft)}
+                        </p>
+                      </button>
+                      {!active ? (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-semibold text-[#b8bfc9] opacity-100 transition hover:bg-red-50 hover:text-red-600 md:opacity-0 md:group-hover/history:opacity-100"
+                            onClick={() => onRemove(item.id)}
+                            type="button"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            Видалити
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          ) : (
+            <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
+              <Search className="h-8 w-8 text-[#c8cdd6]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-[#5b6472]">Нічого не знайшли</p>
+              <p className="mt-1 text-[12.5px] text-[#9aa1ad]">Спробуй інший запит.</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
 
 function BriefForm({
   brief,
@@ -1234,9 +1641,10 @@ function DraftEditor({
           <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-[#dfe3ea] bg-white">
             <FileText className="h-10 w-10 text-[#a4abb6]" aria-hidden="true" />
           </div>
-          <h3 className="mt-[26px] text-lg font-bold text-[#2a3038]">Чернетки ще немає</h3>
+          <h3 className="mt-[26px] text-lg font-bold text-[#2a3038]">Чистий аркуш</h3>
           <p className="mt-2 max-w-[340px] text-sm leading-[1.55] text-[#8b94a3]">
-            Заповни бриф ліворуч і натисни «Згенерувати чернетку» — текст зʼявиться тут і буде готовий до редагування.
+            Заповни бриф ліворуч і згенеруй — або відкрий попередній матеріал в{' '}
+            <span className="font-semibold text-[#1d4ed8]">Історії</span>.
           </p>
         </div>
       )}
