@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { saveGenerationHistorySafely } from '@/lib/generationHistory';
 import { generateMerchIdeas } from '@/lib/openrouter';
 import { merchIdeasRequestSchema } from '@/lib/schema';
 
@@ -14,6 +15,12 @@ type RateLimitBucket = {
 };
 
 const rateLimitBuckets = new Map<string, RateLimitBucket>();
+
+function deriveHistoryTitle(occasion: string, firstIdeaTitle?: string) {
+  const title = firstIdeaTitle?.trim() || occasion.trim() || 'Ідеї для мерчу';
+
+  return title.length > 76 ? `${title.slice(0, 76)}...` : title;
+}
 
 function getClientKey(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
@@ -88,6 +95,14 @@ export async function POST(request: Request) {
 
     const result = await generateMerchIdeas(parsedRequest.data);
     const durationMs = Date.now() - startedAt;
+
+    await saveGenerationHistorySafely({
+      durationMs,
+      input: parsedRequest.data,
+      output: result,
+      title: deriveHistoryTitle(parsedRequest.data.occasion, result.ideas[0]?.title),
+      tool: 'merch',
+    });
 
     console.info('[generate-merch-ideas] completed', {
       durationMs,

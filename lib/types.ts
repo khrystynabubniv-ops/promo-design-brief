@@ -67,3 +67,15 @@ export type RequestHistoryItem = {
   taskUrls?: NotionTaskLink[];
   timings: RequestTimings;
 };
+
+export type GenerationHistoryTool = 'brief' | 'smm' | 'merch';
+
+export type GenerationHistoryItem = {
+  id: string;
+  tool: GenerationHistoryTool;
+  title: string;
+  createdAt: string;
+  input: unknown;
+  output: unknown;
+  durationMs?: number;
+};

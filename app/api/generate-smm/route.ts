@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { saveGenerationHistorySafely } from '@/lib/generationHistory';
 import { generateSmmResult } from '@/lib/openrouter';
 import { smmGenerateRequestSchema } from '@/lib/schema';
 
@@ -14,6 +15,19 @@ type RateLimitBucket = {
 };
 
 const rateLimitBuckets = new Map<string, RateLimitBucket>();
+
+function deriveHistoryTitle(material: string) {
+  const firstLine = material
+    .split('\n')
+    .map((line) => line.replace(/^#+\s*/, '').replaceAll('*', '').trim())
+    .find(Boolean);
+
+  if (!firstLine) {
+    return 'SMM генерація';
+  }
+
+  return firstLine.length > 76 ? `${firstLine.slice(0, 76)}...` : firstLine;
+}
 
 function getClientKey(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
@@ -88,6 +102,14 @@ export async function POST(request: Request) {
 
     const result = await generateSmmResult(parsedRequest.data);
     const durationMs = Date.now() - startedAt;
+
+    await saveGenerationHistorySafely({
+      durationMs,
+      input: parsedRequest.data,
+      output: result,
+      title: deriveHistoryTitle(parsedRequest.data.material),
+      tool: 'smm',
+    });
 
     console.info('[generate-smm] completed', {
       durationMs,

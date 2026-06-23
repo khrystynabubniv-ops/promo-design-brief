@@ -23,6 +23,7 @@ npm run dev
 Required environment variables:
 
 - `OPENROUTER_API_KEY`
+- `DATABASE_URL`
 - `NOTION_TOKEN`
 - `NEXT_PUBLIC_APP_TITLE`
 
@@ -53,6 +54,11 @@ Before production use, fill the reference post texts in `lib/referenceExamples.t
 
 The merch tool uses the same server-side OpenRouter key.
 It enables the OpenRouter `openrouter:web_search` server tool and returns validated JSON cards with a company case, fit rationale, packaging idea, and source link.
+
+## Generation History
+
+Server-side generation history is stored in Postgres via `DATABASE_URL`.
+The app keeps generated Brief, SMM, and Merch results for the last 30 days and exposes them in `/history`.
 
 ## Scripts
 

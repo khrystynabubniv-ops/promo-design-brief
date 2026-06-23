@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DEFAULT_PROMPT } from '@/lib/constants';
+import { saveGenerationHistorySafely } from '@/lib/generationHistory';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -789,7 +790,31 @@ export async function POST(req: Request) {
     );
     const finishReason = vacancyBriefs.at(-1)?.finishReason ?? null;
     const cleanBrief = buildCombinedBrief(vacancyBriefs);
+    const parentTitle = buildDefaultTaskTitle(vacancyBriefs.length, vacancyBriefs[0]?.title ?? '');
     const durationMs = Date.now() - startedAt;
+    const responsePayload = {
+      brief: cleanBrief,
+      continuationAttempts,
+      finishReason,
+      parentTitle,
+      resolvedUrlCount,
+      vacancyBriefs: vacancyBriefs.map((vacancyBrief) => ({
+        brief: vacancyBrief.brief,
+        id: vacancyBrief.id,
+        sourceUrl: vacancyBrief.sourceUrl,
+        title: vacancyBrief.title,
+      })),
+    };
+
+    await saveGenerationHistorySafely({
+      durationMs,
+      input: {
+        vacancies,
+      },
+      output: responsePayload,
+      title: parentTitle,
+      tool: 'brief',
+    });
 
     console.info('[generate-brief] completed', {
       durationMs,
@@ -800,18 +825,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      brief: cleanBrief,
+      ...responsePayload,
       durationMs,
-      continuationAttempts,
-      finishReason,
-      parentTitle: buildDefaultTaskTitle(vacancyBriefs.length, vacancyBriefs[0]?.title ?? ''),
-      resolvedUrlCount,
-      vacancyBriefs: vacancyBriefs.map((vacancyBrief) => ({
-        brief: vacancyBrief.brief,
-        id: vacancyBrief.id,
-        sourceUrl: vacancyBrief.sourceUrl,
-        title: vacancyBrief.title,
-      })),
     });
   } catch (error) {
     const durationMs = Date.now() - startedAt;

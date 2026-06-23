@@ -11,6 +11,7 @@ import { RequestHistory } from '@/components/RequestHistory';
 import { SmmGenerator } from '@/components/SmmGenerator';
 import { ToolHub } from '@/components/ToolHub';
 import { MerchIdeasGenerator } from '@/components/MerchIdeasGenerator';
+import { GenerationHistory } from '@/components/GenerationHistory';
 import { DEFAULT_PROMPT } from '@/lib/constants';
 import type {
   ActionStatus,
@@ -26,10 +27,11 @@ const MAX_HISTORY_ITEMS = 30;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
-type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch';
+type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch' | 'history';
 
 const toolPaths: Record<ActiveTool, string> = {
   brief: '/brief',
+  history: '/history',
   hub: '/',
   merch: '/merch',
   smm: '/smm',
@@ -291,6 +293,10 @@ function getActiveToolFromPathname(pathname: string | null): ActiveTool {
     return 'merch';
   }
 
+  if (pathname === '/history') {
+    return 'history';
+  }
+
   return 'hub';
 }
 
@@ -323,6 +329,10 @@ export default function Home() {
 
     if (activeTool === 'merch') {
       return 'Merch & Gifts Ideas';
+    }
+
+    if (activeTool === 'history') {
+      return 'Generation History';
     }
 
     return 'PR Comms tools';
@@ -659,6 +669,7 @@ export default function Home() {
         {activeTool === 'hub' ? (
           <ToolHub
             onOpenBrief={openBriefGenerator}
+            onOpenHistory={() => openTool('history')}
             onOpenMerchIdeas={() => openTool('merch')}
             onOpenSmm={() => openTool('smm')}
           />
@@ -728,6 +739,10 @@ export default function Home() {
 
         {activeTool === 'merch' ? (
           <MerchIdeasGenerator onBackToHub={() => openTool('hub')} />
+        ) : null}
+
+        {activeTool === 'history' ? (
+          <GenerationHistory onBackToHub={() => openTool('hub')} />
         ) : null}
       </div>
     </main>
