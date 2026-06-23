@@ -6,6 +6,7 @@ Current tools:
 
 - `Promo Brief Generator`: вакансії або Ashby-лінки → промо-брифи для дизайнерів → задачі в Notion.
 - `SMM Universe Generator`: матеріал / тема / інтервʼю → варіанти тексту поста та/або структура каруселі в TOV Universe.
+- `Merch & Gifts Ideas`: аудиторія / привід / формат → ідеї для мерчу з реальними кейсами компаній і джерелами.
 
 ## Stakeholder Guide
 
@@ -47,6 +48,11 @@ The SMM tool uses the same server-side OpenRouter key. It returns validated JSON
 Generated SMM results are stored in the browser history panel for the current user/device.
 
 Before production use, fill the reference post texts in `lib/referenceExamples.ts`. URLs are already included, but Instagram blocks automated reads, so the `text` fields must be pasted manually.
+
+## Merch & Gifts Ideas
+
+The merch tool uses the same server-side OpenRouter key.
+It enables the OpenRouter `openrouter:web_search` server tool and returns validated JSON cards with a company case, fit rationale, packaging idea, and source link.
 
 ## Scripts
 

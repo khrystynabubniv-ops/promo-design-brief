@@ -5,6 +5,9 @@ import {
   carouselResultSchema,
   type CaptionResult,
   type CarouselResult,
+  merchIdeasResultSchema,
+  type MerchIdeasRequest,
+  type MerchIdeasResult,
   type SmmAtomicFormat,
   type SmmGenerateRequest,
   type SmmGenerationResult,
@@ -21,9 +24,11 @@ type OpenRouterMessage = {
   content: string;
 };
 
+type OpenRouterMessageContent = string | Array<{ type: string; text?: string }>;
+
 type OpenRouterChoice = {
   message?: {
-    content?: string;
+    content?: OpenRouterMessageContent;
   };
   finish_reason?: string | null;
   native_finish_reason?: string | null;
@@ -39,6 +44,16 @@ type OpenRouterResponse = {
 type CompletionRequest = {
   format: SmmAtomicFormat;
   messages: OpenRouterMessage[];
+};
+
+type OpenRouterTool = {
+  type: 'openrouter:web_search';
+  parameters?: {
+    engine?: 'auto' | 'native' | 'exa' | 'firecrawl' | 'parallel' | 'perplexity';
+    max_results?: number;
+    max_total_results?: number;
+    search_context_size?: 'low' | 'medium' | 'high';
+  };
 };
 
 function toAsciiHeaderValue(value: string | undefined, fallbackValue: string) {
@@ -83,6 +98,10 @@ function getOpenRouterTimeoutMs() {
 
 function getMaxTokens(format: SmmAtomicFormat) {
   return format === 'caption' ? 1500 : 5000;
+}
+
+function getMerchMaxTokens(ideasCount: number) {
+  return Math.min(14000, Math.max(4000, ideasCount * 1400 + 1500));
 }
 
 function getHeaders() {
@@ -158,6 +177,22 @@ function stripJsonFence(value: string) {
     .trim();
 }
 
+function getMessageContentText(content: OpenRouterMessageContent | undefined) {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text ?? '')
+      .join('\n')
+      .trim();
+  }
+
+  return '';
+}
+
 function parseAndValidateCompletion(content: string, format: SmmAtomicFormat) {
   let parsed: unknown;
 
@@ -206,7 +241,7 @@ async function requestOpenRouterCompletion({ format, messages }: CompletionReque
     const data = await parseJsonResponse<OpenRouterResponse>(response);
 
     if (response.ok) {
-      const content = data.choices?.[0]?.message?.content ?? '';
+      const content = getMessageContentText(data.choices?.[0]?.message?.content);
 
       if (!content.trim()) {
         throw new Error('OpenRouter API не повернув текст відповіді.');
@@ -300,4 +335,123 @@ export async function generateSmmResult(params: SmmGenerateRequest): Promise<Smm
   return {
     carousel: await generateSmmContent(params, 'carousel') as CarouselResult,
   };
+}
+
+function buildMerchSystemPrompt(ideasCount: number) {
+  return `Ти стратег із корпоративного мерчу та подарунків. На основі заданих аудиторії, приводу, напрямку та бюджету згенеруй ${ideasCount} конкретних ідей. Кожну ідею прив'яжи до реального кейсу конкретної компанії, знайденого через вебпошук, із робочим посиланням. Для кожної поясни, чому вона пасує саме цій аудиторії, і запропонуй формат та пакування. Наведені бренди використовуй як орієнтир стилю.
+
+Критичні правила:
+- Обов'язково використай web_search для пошуку реальних кейсів компаній.
+- Використай максимум 5 пошукових запитів.
+- Не вигадуй source_url. Якщо не знайшов робоче джерело для конкретного кейсу, залиш source_url порожнім рядком.
+- Відповідай ВИКЛЮЧНО валідним JSON, без markdown, без бектиків і без пояснень.
+- Поверни рівно ${ideasCount} ідей, якщо це можливо.
+- Пиши українською.
+
+Очікуваний JSON:
+{
+  "ideas": [
+    {
+      "title": "...",
+      "company": "...",
+      "case": "що саме зробила компанія",
+      "why_fits": "чому пасує цій аудиторії",
+      "format_packaging": "формат і пакування",
+      "source_url": "https://..."
+    }
+  ]
+}`;
+}
+
+function buildMerchUserMessage(params: MerchIdeasRequest) {
+  const optionalFields = [
+    params.budget ? `Бюджет: ${params.budget}` : '',
+    params.quantity ? `Кількість одиниць: ${params.quantity}` : '',
+    params.referenceBrands ? `Бренди-референси: ${params.referenceBrands}` : '',
+  ].filter(Boolean);
+
+  return [
+    `Аудиторія: ${params.audience}`,
+    `Привід / тематика: ${params.occasion}`,
+    `Напрямок / формат: ${params.direction}`,
+    ...optionalFields,
+    `Кількість ідей: ${params.ideasCount}`,
+  ].join('\n');
+}
+
+function parseMerchIdeasResult(content: string): MerchIdeasResult {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(stripJsonFence(content));
+  } catch {
+    throw new Error('OpenRouter повернув відповідь не у форматі валідного JSON. Спробуйте згенерувати ще раз.');
+  }
+
+  try {
+    return merchIdeasResultSchema.parse(parsed);
+  } catch {
+    throw new Error('OpenRouter повернув JSON, але він не відповідає очікуваній структурі ідей.');
+  }
+}
+
+async function requestOpenRouterMerchIdeas(params: MerchIdeasRequest) {
+  const timeoutMs = getOpenRouterTimeoutMs();
+  const tools: OpenRouterTool[] = [
+    {
+      type: 'openrouter:web_search',
+      parameters: {
+        engine: 'auto',
+        max_results: 5,
+        max_total_results: 25,
+        search_context_size: 'medium',
+      },
+    },
+  ];
+  const response = await fetchWithTimeout(
+    OPENROUTER_API_URL,
+    {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+        max_tokens: getMerchMaxTokens(params.ideasCount),
+        temperature: getOpenRouterTemperature(),
+        messages: [
+          {
+            role: 'system',
+            content: buildMerchSystemPrompt(params.ideasCount),
+          },
+          {
+            role: 'user',
+            content: buildMerchUserMessage(params),
+          },
+        ],
+        tools,
+      }),
+    },
+    timeoutMs,
+  ).catch((error: unknown) => {
+    throw new Error(getNetworkErrorMessage(error, timeoutMs));
+  });
+
+  const data = await parseJsonResponse<OpenRouterResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      data.error?.message ?? `OpenRouter API повернув помилку ${response.status}.`,
+    );
+  }
+
+  const content = getMessageContentText(data.choices?.[0]?.message?.content);
+
+  if (!content.trim()) {
+    throw new Error('OpenRouter API не повернув текст із JSON-ідеями.');
+  }
+
+  return content;
+}
+
+export async function generateMerchIdeas(params: MerchIdeasRequest): Promise<MerchIdeasResult> {
+  return parseMerchIdeasResult(await requestOpenRouterMerchIdeas(params));
 }

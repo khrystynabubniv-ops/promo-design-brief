@@ -9,6 +9,7 @@ import { Step3Notion } from '@/components/Step3Notion';
 import { RequestHistory } from '@/components/RequestHistory';
 import { SmmGenerator } from '@/components/SmmGenerator';
 import { ToolHub } from '@/components/ToolHub';
+import { MerchIdeasGenerator } from '@/components/MerchIdeasGenerator';
 import { DEFAULT_PROMPT } from '@/lib/constants';
 import type {
   ActionStatus,
@@ -24,7 +25,7 @@ const MAX_HISTORY_ITEMS = 30;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
-type ActiveTool = 'hub' | 'brief' | 'smm';
+type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch';
 
 const initialNotionForm: NotionTaskForm = {
   name: '',
@@ -292,6 +293,10 @@ export default function Home() {
 
     if (activeTool === 'smm') {
       return 'SMM Universe Generator';
+    }
+
+    if (activeTool === 'merch') {
+      return 'Merch & Gifts Ideas';
     }
 
     return 'PR Comms tools';
@@ -624,6 +629,7 @@ export default function Home() {
         {activeTool === 'hub' ? (
           <ToolHub
             onOpenBrief={openBriefGenerator}
+            onOpenMerchIdeas={() => setActiveTool('merch')}
             onOpenSmm={() => setActiveTool('smm')}
           />
         ) : null}
@@ -688,6 +694,10 @@ export default function Home() {
 
         {activeTool === 'smm' ? (
           <SmmGenerator onBackToHub={() => setActiveTool('hub')} />
+        ) : null}
+
+        {activeTool === 'merch' ? (
+          <MerchIdeasGenerator onBackToHub={() => setActiveTool('hub')} />
         ) : null}
       </div>
     </main>
