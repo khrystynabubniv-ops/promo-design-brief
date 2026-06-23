@@ -11,54 +11,42 @@ type ToolHubProps = {
 
 const tools = [
   {
-    chips: ['Ashby', 'Notion', 'design brief'],
     cta: 'Відкрити генератор',
     description: 'Вакансії або Ashby-лінки перетворюються на промо-брифи для дизайнерів і задачі в Notion.',
     icon: FileText,
-    input: 'Вакансії або Ashby-лінки',
     label: 'Promo Brief Generator',
     meta: 'Вакансії → бриф → Notion',
     onOpenKey: 'brief',
-    output: 'Промо-бриф і задача',
     step: '01',
     status: 'Готовий',
   },
   {
-    chips: ['caption', 'carousel', 'TOV'],
     cta: 'Відкрити генератор',
     description: 'Матеріал, тема або інтервʼю перетворюються на варіанти поста й структуру каруселі в TOV Universe.',
     icon: Layers3,
-    input: 'Матеріал, тема або інтервʼю',
     label: 'SMM Universe Generator',
     meta: 'Матеріал → caption / carousel',
     onOpenKey: 'smm',
-    output: 'Пости й каруселі',
     step: '02',
     status: 'Новий',
   },
   {
-    chips: ['audience', 'cases', 'sources'],
     cta: 'Відкрити генератор',
     description: 'Параметри аудиторії та приводу перетворюються на мерч-ідеї з реальними кейсами компаній і джерелами.',
     icon: Gift,
-    input: 'Аудиторія, привід і бюджет',
     label: 'Merch & Gifts Ideas',
     meta: 'Аудиторія → кейси → ідеї',
     onOpenKey: 'merch',
-    output: 'Мерч-ідеї з референсами',
     step: '03',
     status: 'Новий',
   },
   {
-    chips: ['articles', 'quotes', 'press release'],
     cta: 'Відкрити редактор',
     description: 'Бриф, факти й картки спікерів перетворюються на статті, колонки, коментарі та прес-релізи.',
     icon: Newspaper,
-    input: 'Бриф, факти й спікери',
     label: 'Articles & Press Releases',
     meta: 'Бриф → чернетка → редактор',
     onOpenKey: 'articles',
-    output: 'Чернетка для редактури',
     step: '04',
     status: 'Beta',
   },
@@ -109,7 +97,7 @@ export function ToolHub({ onOpenArticles, onOpenBrief, onOpenMerchIdeas, onOpenS
 
           return (
             <button
-              className="group flex min-h-[380px] flex-col rounded-[16px] border border-[#e7e9ee] bg-white p-[18px] text-left shadow-[0_10px_30px_rgba(16,24,40,.06)] outline-none transition hover:-translate-y-0.5 hover:border-[#b8c8f5] hover:shadow-[0_18px_44px_rgba(16,24,40,.09)] focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
+              className="group flex min-h-[286px] flex-col rounded-[16px] border border-[#e7e9ee] bg-white p-[18px] text-left shadow-[0_10px_30px_rgba(16,24,40,.06)] outline-none transition hover:-translate-y-0.5 hover:border-[#b8c8f5] hover:shadow-[0_18px_44px_rgba(16,24,40,.09)] focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
               key={tool.label}
               onClick={handleOpen}
               type="button"
@@ -133,34 +121,6 @@ export function ToolHub({ onOpenArticles, onOpenBrief, onOpenMerchIdeas, onOpenS
                 </span>
                 <span className="mt-3 block text-[13.5px] leading-6 text-[#5b6472]">
                   {tool.description}
-                </span>
-                <span className="mt-5 grid gap-3 border-y border-[#eef0f3] py-4">
-                  <span className="grid grid-cols-[58px_minmax(0,1fr)] gap-3">
-                    <span className="text-[11px] font-bold uppercase tracking-normal text-[#939bab]">
-                      Вхід
-                    </span>
-                    <span className="text-[13px] font-semibold leading-5 text-[#2a3038]">
-                      {tool.input}
-                    </span>
-                  </span>
-                  <span className="grid grid-cols-[58px_minmax(0,1fr)] gap-3">
-                    <span className="text-[11px] font-bold uppercase tracking-normal text-[#939bab]">
-                      Вихід
-                    </span>
-                    <span className="text-[13px] font-semibold leading-5 text-[#2a3038]">
-                      {tool.output}
-                    </span>
-                  </span>
-                </span>
-                <span className="mt-4 flex flex-wrap gap-1.5">
-                  {tool.chips.map((chip) => (
-                    <span
-                      className="rounded-[7px] bg-[#f1f3f6] px-2 py-1 text-[11.5px] font-semibold leading-none text-[#5b6472]"
-                      key={chip}
-                    >
-                      {chip}
-                    </span>
-                  ))}
                 </span>
               </span>
               <span className="mt-auto flex items-center justify-between border-t border-[#eef0f3] pt-4 text-[13.5px] font-bold text-[#181b22]">
