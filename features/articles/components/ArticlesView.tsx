@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  Download,
   FileText,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  Save,
   Trash2,
   UserPlus,
   WandSparkles,
@@ -52,6 +52,12 @@ type RegenerateParagraphResponse = {
   durationMs?: number;
   error?: string;
   paragraph?: string;
+};
+
+type SaveNotionResponse = {
+  durationMs?: number;
+  error?: string;
+  url?: string;
 };
 
 const initialStatus: ActionStatus = { kind: 'idle' };
@@ -422,35 +428,41 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
     }
   }
 
-  async function handleExportGoogleDocs() {
+  async function handleSaveNotion() {
     if (!activeVersion) {
       setExportStatus({ kind: 'error', message: 'Спершу згенеруйте чернетку.' });
       return;
     }
 
-    setExportStatus({ kind: 'loading', message: 'Готуємо експорт...' });
+    const versionNumber = draft
+      ? draft.versions.findIndex((version) => version.id === draft.activeVersionId) + 1
+      : 0;
+
+    setExportStatus({ kind: 'loading', message: 'Зберігаємо в Notion...' });
 
     try {
-      const response = await fetch('/api/articles/export-google-doc', {
+      const response = await fetch('/api/articles/save-notion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brief: draft?.brief,
           content: activeVersion.content,
+          manualEdits: activeVersion.manualEdits,
+          versionLabel: versionNumber ? `v${versionNumber}` : '',
         }),
       });
-      const data = await readApiJson<{ error?: string; url?: string }>(response);
+      const data = await readApiJson<SaveNotionResponse>(response);
 
       if (!response.ok || !data.url) {
-        throw new Error(data.error ?? 'Не вдалося експортувати в Google Docs.');
+        throw new Error(data.error ?? 'Не вдалося зберегти в Notion.');
       }
 
-      setExportStatus({ kind: 'success', message: 'Google Doc створено.' });
+      setExportStatus({ kind: 'success', message: 'Збережено в Notion.' });
       window.open(data.url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       setExportStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : 'Не вдалося експортувати в Google Docs.',
+        message: error instanceof Error ? error.message : 'Не вдалося зберегти в Notion.',
       });
     }
   }
@@ -488,15 +500,15 @@ export function ArticlesView({ onBackToHub }: ArticlesViewProps) {
           <button
             className="inline-flex h-[34px] items-center gap-2 rounded-[9px] border border-[#e7e9ee] bg-white px-3.5 text-[13px] font-semibold text-[#2a3038] transition hover:bg-[#f5f6f8] disabled:cursor-not-allowed disabled:text-[#9aa1ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2"
             disabled={!activeVersion || exportStatus.kind === 'loading'}
-            onClick={handleExportGoogleDocs}
+            onClick={handleSaveNotion}
             type="button"
           >
             {exportStatus.kind === 'loading' ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1d4ed8]" aria-hidden="true" />
             ) : (
-              <Download className="h-3.5 w-3.5 text-[#1d4ed8]" aria-hidden="true" />
+              <Save className="h-3.5 w-3.5 text-[#1d4ed8]" aria-hidden="true" />
             )}
-            Експорт у Google Docs
+            Зберегти у Notion
           </button>
         </div>
       </header>
