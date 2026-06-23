@@ -1,6 +1,15 @@
-# Vacancy Brief Generator
+# PR Comms Tools
 
-Internal Universe Group tool for generating promo vacancy design briefs with OpenRouter and creating designer tasks in Notion.
+Internal Universe Group workspace for PR and communications tools.
+
+Current tools:
+
+- `Promo Brief Generator`: вакансії або Ashby-лінки → промо-брифи для дизайнерів → задачі в Notion.
+- `SMM Universe Generator`: матеріал / тема / інтервʼю → варіанти тексту поста та/або структура каруселі в TOV Universe.
+
+## Stakeholder Guide
+
+- [Інструкція для стейкхолдера](docs/stakeholder-instruction.md)
 
 ## Local Setup
 
@@ -19,12 +28,25 @@ Required environment variables:
 Optional environment variables:
 
 - `OPENROUTER_MODEL` defaults to `anthropic/claude-sonnet-4.6`
+- `OPENROUTER_TEMPERATURE` defaults to `0.8`
 - `OPENROUTER_MAX_TOKENS` defaults to `8000`
 - `OPENROUTER_TIMEOUT_MS` defaults to `240000`
 - `OPENROUTER_SITE_URL` identifies the app in OpenRouter analytics
 
 The vacancies field accepts plain vacancy text or public Ashby vacancy links.
 Ashby links are resolved on the server before the brief is sent to OpenRouter.
+
+## SMM Universe Generator
+
+The SMM tool uses the same server-side OpenRouter key. It returns validated JSON for:
+
+- `caption`: variants with angle, text, CTA, and hashtags.
+- `carousel`: idea, audience, slides, caption, CTA options, and alternative first-slide headlines.
+- `both`: two separate OpenRouter calls, one for caption and one for carousel.
+
+Generated SMM results are stored in the browser history panel for the current user/device.
+
+Before production use, fill the reference post texts in `lib/referenceExamples.ts`. URLs are already included, but Instagram blocks automated reads, so the `text` fields must be pasted manually.
 
 ## Scripts
 

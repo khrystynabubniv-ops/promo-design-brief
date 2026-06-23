@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Layers3 } from 'lucide-react';
 import { Stepper } from '@/components/Stepper';
 import { Step1Vacancies } from '@/components/Step1Vacancies';
 import { Step2Brief } from '@/components/Step2Brief';
 import { Step3Notion } from '@/components/Step3Notion';
 import { RequestHistory } from '@/components/RequestHistory';
+import { SmmGenerator } from '@/components/SmmGenerator';
+import { ToolHub } from '@/components/ToolHub';
 import { DEFAULT_PROMPT } from '@/lib/constants';
 import type {
   ActionStatus,
@@ -20,6 +23,8 @@ const HISTORY_STORAGE_KEY = 'brief_request_history';
 const MAX_HISTORY_ITEMS = 30;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
+
+type ActiveTool = 'hub' | 'brief' | 'smm';
 
 const initialNotionForm: NotionTaskForm = {
   name: '',
@@ -265,6 +270,7 @@ function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
 }
 
 export default function Home() {
+  const [activeTool, setActiveTool] = useState<ActiveTool>('hub');
   const [step, setStep] = useState<AppStep>(1);
   const [vacancies, setVacancies] = useState('');
   const systemPrompt = DEFAULT_PROMPT;
@@ -279,10 +285,17 @@ export default function Home() {
   const [activeHistoryId, setActiveHistoryId] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  const appTitle = useMemo(
-    () => process.env.NEXT_PUBLIC_APP_TITLE ?? 'Brief Generator',
-    [],
-  );
+  const appTitle = useMemo(() => {
+    if (activeTool === 'brief') {
+      return 'Promo Brief Generator';
+    }
+
+    if (activeTool === 'smm') {
+      return 'SMM Universe Generator';
+    }
+
+    return 'PR Comms tools';
+  }, [activeTool]);
 
   useEffect(() => {
     const savedHistory = parseHistoryItems(window.localStorage.getItem(HISTORY_STORAGE_KEY));
@@ -577,6 +590,11 @@ export default function Home() {
     setActiveHistoryId(historyItems[0]?.id ?? '');
   }
 
+  function openBriefGenerator() {
+    setActiveTool('brief');
+    setStep(1);
+  }
+
   function clearHistory() {
     setHistoryItems([]);
     setActiveHistoryId('');
@@ -603,48 +621,74 @@ export default function Home() {
           </div>
         </header>
 
-        <Stepper currentStep={step} />
-
-        {step === 1 ? (
-          <Step1Vacancies
-            status={generateStatus}
-            systemPrompt={systemPrompt}
-            vacancies={vacancies}
-            onGenerate={handleGenerateBrief}
-            onVacanciesChange={setVacancies}
+        {activeTool === 'hub' ? (
+          <ToolHub
+            onOpenBrief={openBriefGenerator}
+            onOpenSmm={() => setActiveTool('smm')}
           />
         ) : null}
 
-        {step === 2 ? (
-          <Step2Brief
-            brief={brief}
-            vacancyBriefs={vacancyBriefs}
-            onBack={() => setStep(1)}
-            onBriefChange={handleBriefChange}
-            onVacancyBriefChange={handleVacancyBriefChange}
-            onNext={() => setStep(3)}
-          />
+        {activeTool === 'brief' ? (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                onClick={() => setActiveTool('hub')}
+                type="button"
+              >
+                <Layers3 className="h-4 w-4" aria-hidden="true" />
+                До пулу тулів
+              </button>
+            </div>
+
+            <Stepper currentStep={step} />
+
+            {step === 1 ? (
+              <Step1Vacancies
+                status={generateStatus}
+                systemPrompt={systemPrompt}
+                vacancies={vacancies}
+                onGenerate={handleGenerateBrief}
+                onVacanciesChange={setVacancies}
+              />
+            ) : null}
+
+            {step === 2 ? (
+              <Step2Brief
+                brief={brief}
+                vacancyBriefs={vacancyBriefs}
+                onBack={() => setStep(1)}
+                onBriefChange={handleBriefChange}
+                onVacancyBriefChange={handleVacancyBriefChange}
+                onNext={() => setStep(3)}
+              />
+            ) : null}
+
+            {step === 3 ? (
+              <Step3Notion
+                form={notionForm}
+                notionUrl={notionUrl}
+                notionTaskLinks={notionTaskLinks}
+                status={notionStatus}
+                onBack={() => setStep(2)}
+                onCreateNew={handleCreateNewTask}
+                onFormChange={updateNotionForm}
+                onSubmit={handleCreateNotionTask}
+              />
+            ) : null}
+
+            <RequestHistory
+              activeId={activeHistoryId}
+              items={historyItems}
+              onClear={clearHistory}
+              onSelect={setActiveHistoryId}
+            />
+          </>
         ) : null}
 
-        {step === 3 ? (
-          <Step3Notion
-            form={notionForm}
-            notionUrl={notionUrl}
-            notionTaskLinks={notionTaskLinks}
-            status={notionStatus}
-            onBack={() => setStep(2)}
-            onCreateNew={handleCreateNewTask}
-            onFormChange={updateNotionForm}
-            onSubmit={handleCreateNotionTask}
-          />
+        {activeTool === 'smm' ? (
+          <SmmGenerator onBackToHub={() => setActiveTool('hub')} />
         ) : null}
-
-        <RequestHistory
-          activeId={activeHistoryId}
-          items={historyItems}
-          onClear={clearHistory}
-          onSelect={setActiveHistoryId}
-        />
       </div>
     </main>
   );

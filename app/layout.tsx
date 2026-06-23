@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: process.env.NEXT_PUBLIC_APP_TITLE ?? 'Brief Generator',
-  description: 'Vacancy design brief generator for Employer Brand teams.',
+  title: process.env.NEXT_PUBLIC_APP_TITLE ?? 'PR Comms Tools',
+  description: 'Internal Universe PR and communications tool workspace.',
 };
 
 export default function RootLayout({

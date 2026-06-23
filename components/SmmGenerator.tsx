@@ -1,0 +1,871 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Clipboard,
+  FileText,
+  History,
+  Inbox,
+  Layers3,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+  WandSparkles,
+} from 'lucide-react';
+import type {
+  CaptionResult,
+  CarouselVariant,
+  SmmContentType,
+  SmmFormat,
+  SmmGenerateRequest,
+  SmmGenerationResult,
+  SmmPlatform,
+} from '@/lib/schema';
+import type { ActionStatus } from '@/lib/types';
+
+const SMM_HISTORY_STORAGE_KEY = 'smm_generation_history';
+const MAX_SMM_HISTORY_ITEMS = 30;
+
+const contentTypeOptions: Array<{ label: string; value: SmmContentType }> = [
+  { label: 'Експертний', value: 'expert' },
+  { label: 'Інфопривід', value: 'news' },
+];
+
+const platformOptions: Array<{ label: string; value: SmmPlatform }> = [
+  { label: 'Instagram', value: 'instagram' },
+  { label: 'LinkedIn', value: 'linkedin' },
+];
+
+const formatOptions: Array<{ label: string; value: SmmFormat }> = [
+  { label: 'Текст', value: 'caption' },
+  { label: 'Карусель', value: 'carousel' },
+  { label: 'Обидва', value: 'both' },
+];
+
+const variantOptions = [3, 5] as const;
+
+type SmmGeneratorProps = {
+  onBackToHub: () => void;
+};
+
+type SmmGenerationHistoryItem = {
+  id: string;
+  createdAt: string;
+  title: string;
+  form: SmmGenerateRequest;
+  result: SmmGenerationResult;
+  durationMs?: number;
+};
+
+type GenerateSmmResponse = {
+  durationMs?: number;
+  error?: string;
+  result?: SmmGenerationResult;
+};
+
+const initialStatus: ActionStatus = { kind: 'idle' };
+
+const initialForm: SmmGenerateRequest = {
+  material: '',
+  contentType: 'expert',
+  platform: 'instagram',
+  format: 'caption',
+  speaker: '',
+  ctaTopic: '',
+  codeWord: '',
+  variantsCount: 3,
+};
+
+async function readApiJson<T>(response: Response): Promise<T> {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+function createHistoryId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function formatDuration(value?: number) {
+  if (!value) {
+    return '';
+  }
+
+  return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(1)} s`;
+}
+
+function formatHistoryDate(value: string) {
+  return new Intl.DateTimeFormat('uk-UA', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(new Date(value));
+}
+
+function deriveTitle(material: string) {
+  const firstLine = material
+    .split('\n')
+    .map((line) => line.replace(/^#+\s*/, '').replaceAll('*', '').trim())
+    .find(Boolean);
+
+  if (!firstLine) {
+    return 'Генерація без назви';
+  }
+
+  return firstLine.length > 76 ? `${firstLine.slice(0, 76)}...` : firstLine;
+}
+
+function trimPreview(value: string) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  return normalized.length > 96 ? `${normalized.slice(0, 96)}...` : normalized;
+}
+
+function parseHistoryItems(rawHistory: string | null): SmmGenerationHistoryItem[] {
+  if (!rawHistory) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawHistory);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((item): item is SmmGenerationHistoryItem => {
+        if (!item || typeof item !== 'object') {
+          return false;
+        }
+
+        const candidate = item as Partial<SmmGenerationHistoryItem>;
+
+        return Boolean(
+          typeof candidate.id === 'string' &&
+          typeof candidate.createdAt === 'string' &&
+          typeof candidate.title === 'string' &&
+          candidate.form &&
+          candidate.result,
+        );
+      })
+      .slice(0, MAX_SMM_HISTORY_ITEMS);
+  } catch {
+    return [];
+  }
+}
+
+function formatCaptionVariantForCopy(variant: CaptionResult['variants'][number]) {
+  return [
+    variant.text,
+    variant.cta,
+    variant.hashtags.length ? variant.hashtags.join(' ') : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+function formatCarouselVariantForCopy(variant: CarouselVariant) {
+  return [
+    `Кут: ${variant.angle}`,
+    `Ідея: ${variant.idea}`,
+    `Аудиторія: ${variant.audience}`,
+    variant.slides
+      .map((slide) => [
+        `Слайд ${slide.n}: ${slide.role}`,
+        slide.headline,
+        slide.body,
+        `Візуальна ієрархія: ${slide.visualHierarchy}`,
+      ].join('\n'))
+      .join('\n\n'),
+    `Підпис:
+${variant.caption}`,
+    `CTA:
+${variant.ctas.map((cta) => `- ${cta}`).join('\n')}`,
+    `Альтернативні заголовки:
+${variant.altHeadlines.map((headline) => `- ${headline}`).join('\n')}`,
+  ].join('\n\n');
+}
+
+function isCarouselVariantLike(value: unknown): value is CarouselVariant {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<CarouselVariant>;
+
+  return Boolean(
+    typeof candidate.idea === 'string' &&
+    typeof candidate.audience === 'string' &&
+    Array.isArray(candidate.slides) &&
+    typeof candidate.caption === 'string' &&
+    Array.isArray(candidate.ctas) &&
+    Array.isArray(candidate.altHeadlines),
+  );
+}
+
+function getCarouselVariants(carousel: SmmGenerationResult['carousel']) {
+  if (!carousel) {
+    return [];
+  }
+
+  const candidate = carousel as unknown as {
+    variants?: unknown;
+  };
+
+  if (Array.isArray(candidate.variants)) {
+    return candidate.variants
+      .filter(isCarouselVariantLike)
+      .map((variant) => ({
+        ...variant,
+        angle: variant.angle || 'Варіант каруселі',
+      }));
+  }
+
+  if (isCarouselVariantLike(carousel)) {
+    return [
+      {
+        ...carousel,
+        angle: 'Основний варіант',
+      },
+    ];
+  }
+
+  return [];
+}
+
+function buildFormPayload(form: SmmGenerateRequest): SmmGenerateRequest {
+  return {
+    ...form,
+    material: form.material.trim(),
+    speaker: form.speaker?.trim() ?? '',
+    ctaTopic: form.ctaTopic?.trim() ?? '',
+    codeWord: form.codeWord?.trim() ?? '',
+  };
+}
+
+export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
+  const [form, setForm] = useState<SmmGenerateRequest>(initialForm);
+  const [status, setStatus] = useState<ActionStatus>(initialStatus);
+  const [result, setResult] = useState<SmmGenerationResult | null>(null);
+  const [historyItems, setHistoryItems] = useState<SmmGenerationHistoryItem[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState('');
+  const [lastSubmittedForm, setLastSubmittedForm] = useState<SmmGenerateRequest | null>(null);
+  const [copiedKey, setCopiedKey] = useState('');
+
+  const canGenerate = Boolean(form.material.trim()) && status.kind !== 'loading';
+  const isLoading = status.kind === 'loading';
+
+  const selectedHistoryItem = useMemo(
+    () => historyItems.find((item) => item.id === activeHistoryId) ?? null,
+    [activeHistoryId, historyItems],
+  );
+
+  useEffect(() => {
+    const savedHistory = parseHistoryItems(window.localStorage.getItem(SMM_HISTORY_STORAGE_KEY));
+
+    setHistoryItems(savedHistory);
+    setActiveHistoryId(savedHistory[0]?.id ?? '');
+    setHistoryLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!historyLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(SMM_HISTORY_STORAGE_KEY, JSON.stringify(historyItems));
+  }, [historyItems, historyLoaded]);
+
+  function updateForm(patch: Partial<SmmGenerateRequest>) {
+    setForm((current) => ({ ...current, ...patch }));
+    setStatus(initialStatus);
+  }
+
+  function saveHistoryItem(item: SmmGenerationHistoryItem) {
+    setHistoryItems((current) => [
+      item,
+      ...current.filter((historyItem) => historyItem.id !== item.id),
+    ].slice(0, MAX_SMM_HISTORY_ITEMS));
+    setActiveHistoryId(item.id);
+  }
+
+  async function copyText(value: string, key: string) {
+    await navigator.clipboard.writeText(value);
+    setCopiedKey(key);
+    window.setTimeout(() => setCopiedKey(''), 1600);
+  }
+
+  async function submitGeneration(nextForm: SmmGenerateRequest) {
+    const payload = buildFormPayload(nextForm);
+    const requestStartedAt = performance.now();
+
+    if (!payload.material) {
+      setStatus({ kind: 'error', message: 'Додайте матеріал, бриф або тему.' });
+      return;
+    }
+
+    setForm(payload);
+    setLastSubmittedForm(payload);
+    setStatus({ kind: 'loading', message: 'Генеруємо текст...' });
+
+    try {
+      const response = await fetch('/api/generate-smm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await readApiJson<GenerateSmmResponse>(response);
+
+      if (!response.ok || !data.result) {
+        throw new Error(data.error ?? `Не вдалося згенерувати текст. Сервер повернув ${response.status}.`);
+      }
+
+      const durationMs = Math.round(performance.now() - requestStartedAt);
+      const historyItem: SmmGenerationHistoryItem = {
+        createdAt: new Date().toISOString(),
+        durationMs,
+        form: payload,
+        id: createHistoryId(),
+        result: data.result,
+        title: deriveTitle(payload.material),
+      };
+
+      setResult(data.result);
+      saveHistoryItem(historyItem);
+      setStatus({
+        kind: 'success',
+        message: `Готово за ${formatDuration(data.durationMs ?? durationMs)}.`,
+      });
+    } catch (error) {
+      setStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Сталася помилка генерації.',
+      });
+    }
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitGeneration(form);
+  }
+
+  function handleMoreVariants() {
+    if (!lastSubmittedForm) {
+      return;
+    }
+
+    void submitGeneration(lastSubmittedForm);
+  }
+
+  function selectHistoryItem(item: SmmGenerationHistoryItem) {
+    setActiveHistoryId(item.id);
+    setForm(item.form);
+    setResult(item.result);
+    setLastSubmittedForm(item.form);
+    setStatus(initialStatus);
+  }
+
+  function deleteHistoryItem(id: string) {
+    setHistoryItems((current) => current.filter((item) => item.id !== id));
+
+    if (activeHistoryId === id) {
+      const nextItem = historyItems.find((item) => item.id !== id);
+      setActiveHistoryId(nextItem?.id ?? '');
+      setResult(nextItem?.result ?? null);
+
+      if (nextItem) {
+        setForm(nextItem.form);
+        setLastSubmittedForm(nextItem.form);
+      } else {
+        setForm(initialForm);
+        setLastSubmittedForm(null);
+      }
+    }
+  }
+
+  function createNewGeneration() {
+    setForm(initialForm);
+    setResult(null);
+    setLastSubmittedForm(null);
+    setStatus(initialStatus);
+    setActiveHistoryId('');
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          onClick={onBackToHub}
+          type="button"
+        >
+          <Layers3 className="h-4 w-4" aria-hidden="true" />
+          До пулу тулів
+        </button>
+
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          onClick={createNewGeneration}
+          type="button"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Нова генерація
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="smmMaterial">
+                    Матеріал / бриф / тема *
+                  </label>
+                  <textarea
+                    className="min-h-64 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    id="smmMaterial"
+                    placeholder="Вставте статтю, інтервʼю, тези або коротко опишіть тему..."
+                    value={form.material}
+                    onChange={(event) => updateForm({ material: event.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="contentType">
+                    Тип контенту
+                  </label>
+                  <select
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    id="contentType"
+                    value={form.contentType}
+                    onChange={(event) => updateForm({ contentType: event.target.value as SmmContentType })}
+                  >
+                    {contentTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="platform">
+                    Майданчик
+                  </label>
+                  <select
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    id="platform"
+                    value={form.platform}
+                    onChange={(event) => updateForm({ platform: event.target.value as SmmPlatform })}
+                  >
+                    {platformOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <fieldset className="md:col-span-2">
+                  <legend className="mb-2 text-sm font-semibold text-neutral-950">Формат</legend>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {formatOptions.map((option) => {
+                      const selected = form.format === option.value;
+
+                      return (
+                        <button
+                          aria-pressed={selected}
+                          className={[
+                            'min-h-11 rounded-md border px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2',
+                            selected
+                              ? 'border-neutral-950 bg-neutral-950 text-white'
+                              : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
+                          ].join(' ')}
+                          key={option.value}
+                          onClick={() => updateForm({ format: option.value })}
+                          type="button"
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="speaker">
+                    Спікер
+                  </label>
+                  <input
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    id="speaker"
+                    placeholder="Імʼя для експертної каруселі"
+                    value={form.speaker}
+                    onChange={(event) => updateForm({ speaker: event.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="variantsCount">
+                    Кількість варіантів
+                  </label>
+                  <select
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    id="variantsCount"
+                    value={form.variantsCount}
+                    onChange={(event) => updateForm({ variantsCount: Number(event.target.value) as 3 | 5 })}
+                  >
+                    {variantOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="ctaTopic">
+                    Тематика для CTA
+                  </label>
+                  <input
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    id="ctaTopic"
+                    placeholder="які будують HR-комунікації"
+                    value={form.ctaTopic}
+                    onChange={(event) => updateForm({ ctaTopic: event.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="codeWord">
+                    Кодове слово
+                  </label>
+                  <input
+                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    id="codeWord"
+                    placeholder="СТАТТЯ"
+                    value={form.codeWord}
+                    onChange={(event) => updateForm({ codeWord: event.target.value })}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  disabled={!canGenerate}
+                  type="submit"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <WandSparkles className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Згенерувати
+                </button>
+
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-md border border-neutral-300 bg-white px-5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  disabled={!lastSubmittedForm || isLoading}
+                  onClick={handleMoreVariants}
+                  type="button"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Ще варіанти
+                </button>
+              </div>
+
+              {status.message ? (
+                <span
+                  className={[
+                    'rounded-full px-3 py-1 text-xs font-semibold',
+                    status.kind === 'error'
+                      ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                      : 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200',
+                  ].join(' ')}
+                >
+                  {status.message}
+                </span>
+              ) : null}
+            </div>
+          </form>
+
+          <SmmResults
+            copiedKey={copiedKey}
+            result={result}
+            onCopy={copyText}
+          />
+        </div>
+
+        <aside className="rounded-lg border border-neutral-200 bg-white shadow-soft">
+          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-950 text-white">
+                <History className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-neutral-950">Історія</h2>
+                <p className="text-xs font-medium text-neutral-500">{historyItems.length} записів</p>
+              </div>
+            </div>
+          </div>
+
+          {historyItems.length ? (
+            <div className="max-h-[760px] overflow-y-auto">
+              {historyItems.map((item) => {
+                const selected = selectedHistoryItem?.id === item.id;
+
+                return (
+                  <div
+                    className={[
+                      'border-b border-neutral-200 last:border-b-0',
+                      selected ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-900',
+                    ].join(' ')}
+                    key={item.id}
+                  >
+                    <button
+                      className="block w-full px-4 py-4 text-left transition hover:bg-neutral-50 hover:text-neutral-950"
+                      onClick={() => selectHistoryItem(item)}
+                      type="button"
+                    >
+                      <span className="block text-sm font-semibold leading-5">{item.title}</span>
+                      <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                        {formatHistoryDate(item.createdAt)}
+                      </span>
+                      <span className={selected ? 'mt-3 block text-xs text-neutral-300' : 'mt-3 block text-xs text-neutral-500'}>
+                        {trimPreview(item.form.material)}
+                      </span>
+                      {item.durationMs ? (
+                        <span className={selected ? 'mt-3 block text-xs font-semibold text-white' : 'mt-3 block text-xs font-semibold text-neutral-950'}>
+                          {formatDuration(item.durationMs)}
+                        </span>
+                      ) : null}
+                    </button>
+                    <div className="px-4 pb-4">
+                      <button
+                        className={[
+                          'inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition',
+                          selected
+                            ? 'border-white/30 text-white hover:bg-white hover:text-neutral-950'
+                            : 'border-neutral-300 text-neutral-700 hover:border-neutral-950 hover:text-neutral-950',
+                        ].join(' ')}
+                        onClick={() => deleteHistoryItem(item.id)}
+                        type="button"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Видалити
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
+              <Inbox className="h-8 w-8 text-neutral-400" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-neutral-950">Історія поки порожня</p>
+            </div>
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+type SmmResultsProps = {
+  copiedKey: string;
+  result: SmmGenerationResult | null;
+  onCopy: (value: string, key: string) => void;
+};
+
+function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
+  if (!result) {
+    return (
+      <section className="rounded-lg border border-dashed border-neutral-300 bg-white p-8 text-center">
+        <FileText className="mx-auto h-8 w-8 text-neutral-400" aria-hidden="true" />
+        <h2 className="mt-3 text-base font-semibold text-neutral-950">Результати зʼявляться тут</h2>
+        <p className="mt-2 text-sm leading-6 text-neutral-500">
+          Можна генерувати текст поста, структуру каруселі або обидва формати одразу.
+        </p>
+      </section>
+    );
+  }
+
+  const carouselVariants = getCarouselVariants(result.carousel);
+
+  return (
+    <div className="space-y-6">
+      {result.captions ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-normal text-neutral-950">Тексти поста</h2>
+          </div>
+          {result.captions.variants.map((variant, index) => {
+            const copyKey = `caption-${index}`;
+
+            return (
+              <article
+                className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft"
+                key={`${variant.angle}-${index}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                      Варіант {index + 1}
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-neutral-950">{variant.angle}</h3>
+                  </div>
+                  <CopyButton
+                    copied={copiedKey === copyKey}
+                    onClick={() => onCopy(formatCaptionVariantForCopy(variant), copyKey)}
+                  />
+                </div>
+
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-800">{variant.text}</p>
+                <div className="mt-4 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">CTA</p>
+                  <p className="mt-1 text-sm font-semibold text-neutral-950">{variant.cta}</p>
+                </div>
+                {variant.hashtags.length ? (
+                  <p className="mt-3 text-sm font-medium leading-6 text-neutral-500">
+                    {variant.hashtags.join(' ')}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
+
+      {carouselVariants.length ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-normal text-neutral-950">
+              Карусельні варіанти
+            </h2>
+            <p className="text-sm font-medium text-neutral-500">
+              {carouselVariants.length} варіанти
+            </p>
+          </div>
+
+          {carouselVariants.map((variant, variantIndex) => {
+            const copyKey = `carousel-${variantIndex}`;
+
+            return (
+              <article
+                className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft"
+                key={`${variant.angle}-${variantIndex}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                      Варіант {variantIndex + 1}
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-neutral-950">{variant.angle}</h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">{variant.idea}</p>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-500">{variant.audience}</p>
+                  </div>
+                  <CopyButton
+                    copied={copiedKey === copyKey}
+                    onClick={() => onCopy(formatCarouselVariantForCopy(variant), copyKey)}
+                  />
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-md border border-neutral-200">
+                  {variant.slides.map((slide) => (
+                    <div
+                      className="grid grid-cols-1 gap-3 border-b border-neutral-200 bg-neutral-50 p-4 last:border-b-0 md:grid-cols-[112px_1fr]"
+                      key={slide.n}
+                    >
+                      <div>
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-neutral-950 text-xs font-semibold text-white">
+                          {slide.n}
+                        </span>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                          {slide.role}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold leading-6 text-neutral-950">{slide.headline}</h4>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-800">{slide.body}</p>
+                        <p className="mt-3 text-xs font-medium leading-5 text-neutral-500">
+                          {slide.visualHierarchy}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Підпис</p>
+                      <CopyButton
+                        copied={copiedKey === `carousel-caption-${variantIndex}`}
+                        onClick={() => onCopy(variant.caption, `carousel-caption-${variantIndex}`)}
+                      />
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-neutral-800">
+                      {variant.caption}
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">CTA</p>
+                      <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-800">
+                        {variant.ctas.map((cta) => (
+                          <li key={cta}>{cta}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        Альт. заголовки
+                      </p>
+                      <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-800">
+                        {variant.altHeadlines.map((headline) => (
+                          <li key={headline}>{headline}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+type CopyButtonProps = {
+  copied: boolean;
+  onClick: () => void;
+};
+
+function CopyButton({ copied, onClick }: CopyButtonProps) {
+  return (
+    <button
+      className="inline-flex h-9 items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+      onClick={onClick}
+      type="button"
+    >
+      <Clipboard className="h-3.5 w-3.5" aria-hidden="true" />
+      {copied ? 'Скопійовано' : 'Копіювати'}
+    </button>
+  );
+}
