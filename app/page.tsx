@@ -11,11 +11,12 @@ import { RequestHistory } from '@/components/RequestHistory';
 import { SmmGenerator } from '@/components/SmmGenerator';
 import { ToolHub } from '@/components/ToolHub';
 import { MerchIdeasGenerator } from '@/components/MerchIdeasGenerator';
-import { GenerationHistory } from '@/components/GenerationHistory';
 import { DEFAULT_PROMPT } from '@/lib/constants';
+import { fetchGenerationHistory, getStringField } from '@/lib/historyClient';
 import type {
   ActionStatus,
   AppStep,
+  GenerationHistoryItem,
   NotionTaskForm,
   NotionTaskLink,
   RequestHistoryItem,
@@ -23,15 +24,14 @@ import type {
 } from '@/lib/types';
 
 const HISTORY_STORAGE_KEY = 'brief_request_history';
-const MAX_HISTORY_ITEMS = 30;
+const MAX_HISTORY_ITEMS = 150;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
-type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch' | 'history';
+type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch';
 
 const toolPaths: Record<ActiveTool, string> = {
   brief: '/brief',
-  history: '/history',
   hub: '/',
   merch: '/merch',
   smm: '/smm',
@@ -55,6 +55,7 @@ type GenerateBriefResponse = {
   parentTitle?: string;
   resolvedUrlCount?: number;
   vacancyBriefs?: VacancyBrief[];
+  historyItem?: GenerationHistoryItem | null;
 };
 
 type CreateNotionTaskResponse = {
@@ -280,6 +281,48 @@ function parseHistoryItems(rawHistory: string | null): RequestHistoryItem[] {
   }
 }
 
+function mapBriefGenerationHistoryItem(item: GenerationHistoryItem): RequestHistoryItem | null {
+  if (item.tool !== 'brief') {
+    return null;
+  }
+
+  const vacancies = getStringField(item.input, 'vacancies');
+  const briefText = getStringField(item.output, 'brief');
+
+  if (!vacancies || !briefText) {
+    return null;
+  }
+
+  return {
+    brief: briefText,
+    createdAt: item.createdAt,
+    id: item.id,
+    systemPrompt: '',
+    timings: {
+      generateBriefMs: item.durationMs,
+    },
+    title: item.title || getStringField(item.output, 'parentTitle') || deriveHistoryTitle(vacancies),
+    vacancies,
+    vacancyBriefs: parseVacancyBriefs(item.output && typeof item.output === 'object'
+      ? (item.output as { vacancyBriefs?: unknown }).vacancyBriefs
+      : undefined),
+  };
+}
+
+function mergeRequestHistoryItems(items: RequestHistoryItem[]) {
+  const deduped = new Map<string, RequestHistoryItem>();
+
+  items.forEach((item) => {
+    if (!deduped.has(item.id)) {
+      deduped.set(item.id, item);
+    }
+  });
+
+  return Array.from(deduped.values())
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, MAX_HISTORY_ITEMS);
+}
+
 function getActiveToolFromPathname(pathname: string | null): ActiveTool {
   if (pathname === '/brief') {
     return 'brief';
@@ -291,10 +334,6 @@ function getActiveToolFromPathname(pathname: string | null): ActiveTool {
 
   if (pathname === '/merch') {
     return 'merch';
-  }
-
-  if (pathname === '/history') {
-    return 'history';
   }
 
   return 'hub';
@@ -331,19 +370,39 @@ export default function Home() {
       return 'Merch & Gifts Ideas';
     }
 
-    if (activeTool === 'history') {
-      return 'Generation History';
-    }
-
     return 'PR Comms tools';
   }, [activeTool]);
 
   useEffect(() => {
     const savedHistory = parseHistoryItems(window.localStorage.getItem(HISTORY_STORAGE_KEY));
+    let cancelled = false;
 
     setHistoryItems(savedHistory);
     setActiveHistoryId(savedHistory[0]?.id ?? '');
     setHistoryLoaded(true);
+
+    async function loadServerHistory() {
+      try {
+        const serverHistory = (await fetchGenerationHistory('brief'))
+          .map(mapBriefGenerationHistoryItem)
+          .filter((item): item is RequestHistoryItem => Boolean(item));
+
+        if (cancelled) {
+          return;
+        }
+
+        setHistoryItems((current) => mergeRequestHistoryItems([...serverHistory, ...current]));
+        setActiveHistoryId((current) => current || serverHistory[0]?.id || savedHistory[0]?.id || '');
+      } catch (error) {
+        console.warn('[Brief Generator] failed to load server history', error);
+      }
+    }
+
+    void loadServerHistory();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -355,10 +414,10 @@ export default function Home() {
   }, [historyItems, historyLoaded]);
 
   function saveHistoryItem(item: RequestHistoryItem) {
-    setHistoryItems((current) => [
+    setHistoryItems((current) => mergeRequestHistoryItems([
       item,
       ...current.filter((historyItem) => historyItem.id !== item.id),
-    ].slice(0, MAX_HISTORY_ITEMS));
+    ]));
   }
 
   function updateHistoryItem(id: string, patch: Partial<RequestHistoryItem>) {
@@ -403,7 +462,22 @@ export default function Home() {
       const generatedVacancyBriefs = normalizeGeneratedVacancyBriefs(data, data.brief ?? '', vacancies);
       const generatedBrief = data.brief ?? combineVacancyBriefs(generatedVacancyBriefs);
       const durationMs = Math.round(performance.now() - requestStartedAt);
-      const historyId = createHistoryId();
+      const serverHistoryItem = data.historyItem
+        ? mapBriefGenerationHistoryItem(data.historyItem)
+        : null;
+      const historyId = serverHistoryItem?.id ?? createHistoryId();
+      const historyItem = serverHistoryItem ?? {
+        id: historyId,
+        createdAt: new Date().toISOString(),
+        title: data.parentTitle ?? deriveHistoryTitle(vacancies),
+        vacancies,
+        systemPrompt,
+        brief: generatedBrief,
+        vacancyBriefs: generatedVacancyBriefs,
+        timings: {
+          generateBriefMs: durationMs,
+        },
+      };
 
       console.info('[Brief Generator] generate-brief duration', {
         durationMs,
@@ -425,18 +499,7 @@ export default function Home() {
         };
       });
       setActiveHistoryId(historyId);
-      saveHistoryItem({
-        id: historyId,
-        createdAt: new Date().toISOString(),
-        title: data.parentTitle ?? deriveHistoryTitle(vacancies),
-        vacancies,
-        systemPrompt,
-        brief: generatedBrief,
-        vacancyBriefs: generatedVacancyBriefs,
-        timings: {
-          generateBriefMs: durationMs,
-        },
-      });
+      saveHistoryItem(historyItem);
       const continuationMessage = data.continuationAttempts
         ? ` Дозібрано ${data.continuationAttempts} продовження.`
         : '';
@@ -640,11 +703,6 @@ export default function Home() {
     openTool('brief');
   }
 
-  function clearHistory() {
-    setHistoryItems([]);
-    setActiveHistoryId('');
-  }
-
   function updateNotionForm(patch: Partial<NotionTaskForm>) {
     setNotionUrl('');
     setNotionTaskLinks([]);
@@ -669,7 +727,6 @@ export default function Home() {
         {activeTool === 'hub' ? (
           <ToolHub
             onOpenBrief={openBriefGenerator}
-            onOpenHistory={() => openTool('history')}
             onOpenMerchIdeas={() => openTool('merch')}
             onOpenSmm={() => openTool('smm')}
           />
@@ -727,7 +784,6 @@ export default function Home() {
             <RequestHistory
               activeId={activeHistoryId}
               items={historyItems}
-              onClear={clearHistory}
               onSelect={setActiveHistoryId}
             />
           </>
@@ -739,10 +795,6 @@ export default function Home() {
 
         {activeTool === 'merch' ? (
           <MerchIdeasGenerator onBackToHub={() => openTool('hub')} />
-        ) : null}
-
-        {activeTool === 'history' ? (
-          <GenerationHistory onBackToHub={() => openTool('hub')} />
         ) : null}
       </div>
     </main>

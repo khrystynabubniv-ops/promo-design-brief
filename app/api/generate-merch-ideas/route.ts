@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     const result = await generateMerchIdeas(parsedRequest.data);
     const durationMs = Date.now() - startedAt;
 
-    await saveGenerationHistorySafely({
+    const historyItem = await saveGenerationHistorySafely({
       durationMs,
       input: parsedRequest.data,
       output: result,
@@ -112,6 +112,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       durationMs,
+      historyItem,
       result,
     });
   } catch (error) {

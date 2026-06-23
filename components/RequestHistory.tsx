@@ -6,7 +6,7 @@ import type { RequestHistoryItem } from '@/lib/types';
 type RequestHistoryProps = {
   activeId: string;
   items: RequestHistoryItem[];
-  onClear: () => void;
+  onClear?: () => void;
   onSelect: (id: string) => void;
 };
 
@@ -53,7 +53,7 @@ export function RequestHistory({ activeId, items, onClear, onSelect }: RequestHi
           </div>
         </div>
 
-        {items.length ? (
+        {items.length && onClear ? (
           <button
             className="inline-flex h-9 items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-neutral-950 hover:text-neutral-950"
             onClick={onClear}

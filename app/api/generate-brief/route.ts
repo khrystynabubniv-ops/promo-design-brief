@@ -806,7 +806,7 @@ export async function POST(req: Request) {
       })),
     };
 
-    await saveGenerationHistorySafely({
+    const historyItem = await saveGenerationHistorySafely({
       durationMs,
       input: {
         vacancies,
@@ -827,6 +827,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ...responsePayload,
       durationMs,
+      historyItem,
     });
   } catch (error) {
     const durationMs = Date.now() - startedAt;

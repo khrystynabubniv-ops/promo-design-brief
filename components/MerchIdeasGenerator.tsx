@@ -3,6 +3,8 @@
 import {
   ExternalLink,
   Gift,
+  History,
+  Inbox,
   Layers3,
   Loader2,
   PackageCheck,
@@ -10,9 +12,10 @@ import {
   Search,
   WandSparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { fetchGenerationHistory, getStringField, isRecord } from '@/lib/historyClient';
 import type { MerchIdea, MerchIdeasRequest, MerchIdeasResult } from '@/lib/schema';
-import type { ActionStatus } from '@/lib/types';
+import type { ActionStatus, GenerationHistoryItem } from '@/lib/types';
 
 const referenceBrandsPlaceholder = 'Jacquemus, Balenciaga, Cursor, Apple WWDC, Red Bull, Gisou, Supreme, Carhartt WIP, Figma, Anthropic';
 
@@ -35,7 +38,17 @@ type MerchIdeasGeneratorProps = {
 type GenerateMerchIdeasResponse = {
   durationMs?: number;
   error?: string;
+  historyItem?: GenerationHistoryItem | null;
   result?: MerchIdeasResult;
+};
+
+type MerchIdeasHistoryItem = {
+  id: string;
+  createdAt: string;
+  title: string;
+  form: MerchIdeasRequest;
+  result: MerchIdeasResult;
+  durationMs?: number;
 };
 
 async function readApiJson<T>(response: Response): Promise<T> {
@@ -60,6 +73,21 @@ function formatDuration(value?: number) {
   return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(1)} s`;
 }
 
+function formatHistoryDate(value: string) {
+  return new Intl.DateTimeFormat('uk-UA', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(new Date(value));
+}
+
+function trimPreview(value: string) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+
+  return normalized.length > 110 ? `${normalized.slice(0, 110)}...` : normalized;
+}
+
 function normalizeIdeasCount(value: number) {
   if (!Number.isFinite(value)) {
     return 5;
@@ -80,6 +108,80 @@ function buildFormPayload(form: MerchIdeasRequest): MerchIdeasRequest {
   };
 }
 
+function deriveHistoryTitle(occasion: string, firstIdeaTitle?: string) {
+  const title = firstIdeaTitle?.trim() || occasion.trim() || 'Ідеї для мерчу';
+
+  return title.length > 76 ? `${title.slice(0, 76)}...` : title;
+}
+
+function parseServerForm(value: unknown): MerchIdeasRequest | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const audience = getStringField(value, 'audience');
+  const occasion = getStringField(value, 'occasion');
+  const direction = getStringField(value, 'direction');
+
+  if (!audience || !occasion || !direction) {
+    return null;
+  }
+
+  return {
+    audience,
+    budget: getStringField(value, 'budget'),
+    direction,
+    ideasCount: normalizeIdeasCount(Number(value.ideasCount ?? 5)),
+    occasion,
+    quantity: getStringField(value, 'quantity'),
+    referenceBrands: getStringField(value, 'referenceBrands'),
+  };
+}
+
+function parseServerResult(value: unknown): MerchIdeasResult | null {
+  if (!isRecord(value) || !Array.isArray(value.ideas) || !value.ideas.length) {
+    return null;
+  }
+
+  return value as MerchIdeasResult;
+}
+
+function mapServerHistoryItem(item: GenerationHistoryItem): MerchIdeasHistoryItem | null {
+  if (item.tool !== 'merch') {
+    return null;
+  }
+
+  const form = parseServerForm(item.input);
+  const result = parseServerResult(item.output);
+
+  if (!form || !result) {
+    return null;
+  }
+
+  return {
+    createdAt: item.createdAt,
+    durationMs: item.durationMs,
+    form,
+    id: item.id,
+    result,
+    title: item.title || deriveHistoryTitle(form.occasion, result.ideas[0]?.title),
+  };
+}
+
+function mergeHistoryItems(items: MerchIdeasHistoryItem[]) {
+  const deduped = new Map<string, MerchIdeasHistoryItem>();
+
+  items.forEach((item) => {
+    if (!deduped.has(item.id)) {
+      deduped.set(item.id, item);
+    }
+  });
+
+  return Array.from(deduped.values())
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 150);
+}
+
 function isHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -93,12 +195,56 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
   const [form, setForm] = useState<MerchIdeasRequest>(initialForm);
   const [status, setStatus] = useState<ActionStatus>(initialStatus);
   const [result, setResult] = useState<MerchIdeasResult | null>(null);
+  const [historyItems, setHistoryItems] = useState<MerchIdeasHistoryItem[]>([]);
+  const [activeHistoryId, setActiveHistoryId] = useState('');
 
   const isLoading = status.kind === 'loading';
   const canGenerate = Boolean(form.audience.trim() && form.occasion.trim() && form.direction.trim()) && !isLoading;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadServerHistory() {
+      try {
+        const serverHistory = (await fetchGenerationHistory('merch'))
+          .map(mapServerHistoryItem)
+          .filter((item): item is MerchIdeasHistoryItem => Boolean(item));
+
+        if (cancelled) {
+          return;
+        }
+
+        setHistoryItems(serverHistory);
+        setActiveHistoryId(serverHistory[0]?.id ?? '');
+      } catch (error) {
+        console.warn('[Merch Ideas] failed to load server history', error);
+      }
+    }
+
+    void loadServerHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function updateForm(patch: Partial<MerchIdeasRequest>) {
     setForm((current) => ({ ...current, ...patch }));
+    setStatus(initialStatus);
+  }
+
+  function saveHistoryItem(item: MerchIdeasHistoryItem) {
+    setHistoryItems((current) => mergeHistoryItems([
+      item,
+      ...current.filter((historyItem) => historyItem.id !== item.id),
+    ]));
+    setActiveHistoryId(item.id);
+  }
+
+  function selectHistoryItem(item: MerchIdeasHistoryItem) {
+    setActiveHistoryId(item.id);
+    setForm(item.form);
+    setResult(item.result);
     setStatus(initialStatus);
   }
 
@@ -106,6 +252,7 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
     setForm(initialForm);
     setResult(null);
     setStatus(initialStatus);
+    setActiveHistoryId('');
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -135,8 +282,20 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
       }
 
       const durationMs = Math.round(performance.now() - requestStartedAt);
+      const serverHistoryItem = data.historyItem
+        ? mapServerHistoryItem(data.historyItem)
+        : null;
+      const historyItem = serverHistoryItem ?? {
+        createdAt: new Date().toISOString(),
+        durationMs,
+        form: payload,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        result: data.result,
+        title: deriveHistoryTitle(payload.occasion, data.result.ideas[0]?.title),
+      };
 
       setResult(data.result);
+      saveHistoryItem(historyItem);
       setStatus({
         kind: 'success',
         message: `Готово за ${formatDuration(data.durationMs ?? durationMs)}.`,
@@ -299,6 +458,12 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
       </form>
 
       <MerchIdeasResults result={result} />
+
+      <MerchIdeasHistory
+        activeId={activeHistoryId}
+        items={historyItems}
+        onSelect={selectHistoryItem}
+      />
     </div>
   );
 }
@@ -306,6 +471,76 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
 type MerchIdeasResultsProps = {
   result: MerchIdeasResult | null;
 };
+
+type MerchIdeasHistoryProps = {
+  activeId: string;
+  items: MerchIdeasHistoryItem[];
+  onSelect: (item: MerchIdeasHistoryItem) => void;
+};
+
+function MerchIdeasHistory({ activeId, items, onSelect }: MerchIdeasHistoryProps) {
+  return (
+    <section className="rounded-lg border border-neutral-200 bg-white shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-950 text-white">
+            <History className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold text-neutral-950">Історія ідей</h2>
+            <p className="text-xs font-medium text-neutral-500">{items.length} записів за 30 днів</p>
+          </div>
+        </div>
+      </div>
+
+      {items.length ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => {
+            const selected = activeId === item.id;
+            const firstIdea = item.result.ideas[0];
+
+            return (
+              <button
+                className={[
+                  'border-b border-neutral-200 px-5 py-4 text-left transition md:border-r xl:[&:nth-child(3n)]:border-r-0',
+                  selected ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50',
+                ].join(' ')}
+                key={item.id}
+                onClick={() => onSelect(item)}
+                type="button"
+              >
+                <span className="block text-sm font-semibold leading-5">{item.title}</span>
+                <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                  {formatHistoryDate(item.createdAt)}
+                </span>
+                <span className={selected ? 'mt-3 block text-xs text-neutral-300' : 'mt-3 block text-xs text-neutral-500'}>
+                  {trimPreview([
+                    item.form.audience,
+                    item.form.occasion,
+                    item.form.direction,
+                  ].filter(Boolean).join(' · '))}
+                </span>
+                <span className={selected ? 'mt-3 block text-xs font-semibold text-white' : 'mt-3 block text-xs font-semibold text-neutral-950'}>
+                  {item.result.ideas.length} ідей{item.durationMs ? ` · ${formatDuration(item.durationMs)}` : ''}
+                </span>
+                {firstIdea ? (
+                  <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                    {firstIdea.company}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex min-h-40 flex-col items-center justify-center px-5 py-10 text-center">
+          <Inbox className="h-8 w-8 text-neutral-400" aria-hidden="true" />
+          <p className="mt-3 text-sm font-semibold text-neutral-950">Історія поки порожня</p>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function MerchIdeasResults({ result }: MerchIdeasResultsProps) {
   if (!result) {

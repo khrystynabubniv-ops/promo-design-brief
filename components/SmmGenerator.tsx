@@ -10,9 +10,9 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  Trash2,
   WandSparkles,
 } from 'lucide-react';
+import { fetchGenerationHistory, isRecord } from '@/lib/historyClient';
 import type {
   CaptionResult,
   CarouselVariant,
@@ -22,10 +22,10 @@ import type {
   SmmGenerationResult,
   SmmPlatform,
 } from '@/lib/schema';
-import type { ActionStatus } from '@/lib/types';
+import type { ActionStatus, GenerationHistoryItem } from '@/lib/types';
 
 const SMM_HISTORY_STORAGE_KEY = 'smm_generation_history';
-const MAX_SMM_HISTORY_ITEMS = 30;
+const MAX_SMM_HISTORY_ITEMS = 150;
 
 const contentTypeOptions: Array<{ label: string; value: SmmContentType }> = [
   { label: 'Експертний', value: 'expert' },
@@ -61,6 +61,7 @@ type SmmGenerationHistoryItem = {
 type GenerateSmmResponse = {
   durationMs?: number;
   error?: string;
+  historyItem?: GenerationHistoryItem | null;
   result?: SmmGenerationResult;
 };
 
@@ -164,6 +165,83 @@ function parseHistoryItems(rawHistory: string | null): SmmGenerationHistoryItem[
   }
 }
 
+function isSmmContentType(value: unknown): value is SmmContentType {
+  return value === 'expert' || value === 'news';
+}
+
+function isSmmPlatform(value: unknown): value is SmmPlatform {
+  return value === 'instagram' || value === 'linkedin';
+}
+
+function isSmmFormat(value: unknown): value is SmmFormat {
+  return value === 'caption' || value === 'carousel' || value === 'both';
+}
+
+function normalizeVariantsCount(value: unknown): 3 | 5 {
+  return value === 5 ? 5 : 3;
+}
+
+function parseServerForm(value: unknown): SmmGenerateRequest | null {
+  if (!isRecord(value) || typeof value.material !== 'string' || !value.material.trim()) {
+    return null;
+  }
+
+  return {
+    codeWord: typeof value.codeWord === 'string' ? value.codeWord : '',
+    contentType: isSmmContentType(value.contentType) ? value.contentType : 'expert',
+    ctaTopic: typeof value.ctaTopic === 'string' ? value.ctaTopic : '',
+    format: isSmmFormat(value.format) ? value.format : 'caption',
+    material: value.material,
+    platform: isSmmPlatform(value.platform) ? value.platform : 'instagram',
+    speaker: typeof value.speaker === 'string' ? value.speaker : '',
+    variantsCount: normalizeVariantsCount(value.variantsCount),
+  };
+}
+
+function parseServerResult(value: unknown): SmmGenerationResult | null {
+  if (!isRecord(value) || (!value.captions && !value.carousel)) {
+    return null;
+  }
+
+  return value as SmmGenerationResult;
+}
+
+function mapServerHistoryItem(item: GenerationHistoryItem): SmmGenerationHistoryItem | null {
+  if (item.tool !== 'smm') {
+    return null;
+  }
+
+  const form = parseServerForm(item.input);
+  const result = parseServerResult(item.output);
+
+  if (!form || !result) {
+    return null;
+  }
+
+  return {
+    createdAt: item.createdAt,
+    durationMs: item.durationMs,
+    form,
+    id: item.id,
+    result,
+    title: item.title || deriveTitle(form.material),
+  };
+}
+
+function mergeHistoryItems(items: SmmGenerationHistoryItem[]) {
+  const deduped = new Map<string, SmmGenerationHistoryItem>();
+
+  items.forEach((item) => {
+    if (!deduped.has(item.id)) {
+      deduped.set(item.id, item);
+    }
+  });
+
+  return Array.from(deduped.values())
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, MAX_SMM_HISTORY_ITEMS);
+}
+
 function formatCaptionVariantForCopy(variant: CaptionResult['variants'][number]) {
   return [
     variant.text,
@@ -256,7 +334,6 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
   const [status, setStatus] = useState<ActionStatus>(initialStatus);
   const [result, setResult] = useState<SmmGenerationResult | null>(null);
   const [historyItems, setHistoryItems] = useState<SmmGenerationHistoryItem[]>([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState('');
   const [lastSubmittedForm, setLastSubmittedForm] = useState<SmmGenerateRequest | null>(null);
   const [copiedKey, setCopiedKey] = useState('');
@@ -271,19 +348,34 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
 
   useEffect(() => {
     const savedHistory = parseHistoryItems(window.localStorage.getItem(SMM_HISTORY_STORAGE_KEY));
+    let cancelled = false;
 
     setHistoryItems(savedHistory);
     setActiveHistoryId(savedHistory[0]?.id ?? '');
-    setHistoryLoaded(true);
-  }, []);
 
-  useEffect(() => {
-    if (!historyLoaded) {
-      return;
+    async function loadServerHistory() {
+      try {
+        const serverHistory = (await fetchGenerationHistory('smm'))
+          .map(mapServerHistoryItem)
+          .filter((item): item is SmmGenerationHistoryItem => Boolean(item));
+
+        if (cancelled) {
+          return;
+        }
+
+        setHistoryItems((current) => mergeHistoryItems([...serverHistory, ...current]));
+        setActiveHistoryId((current) => current || serverHistory[0]?.id || savedHistory[0]?.id || '');
+      } catch (error) {
+        console.warn('[SMM Generator] failed to load server history', error);
+      }
     }
 
-    window.localStorage.setItem(SMM_HISTORY_STORAGE_KEY, JSON.stringify(historyItems));
-  }, [historyItems, historyLoaded]);
+    void loadServerHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateForm(patch: Partial<SmmGenerateRequest>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -291,10 +383,10 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
   }
 
   function saveHistoryItem(item: SmmGenerationHistoryItem) {
-    setHistoryItems((current) => [
+    setHistoryItems((current) => mergeHistoryItems([
       item,
       ...current.filter((historyItem) => historyItem.id !== item.id),
-    ].slice(0, MAX_SMM_HISTORY_ITEMS));
+    ]));
     setActiveHistoryId(item.id);
   }
 
@@ -330,7 +422,10 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
       }
 
       const durationMs = Math.round(performance.now() - requestStartedAt);
-      const historyItem: SmmGenerationHistoryItem = {
+      const serverHistoryItem = data.historyItem
+        ? mapServerHistoryItem(data.historyItem)
+        : null;
+      const historyItem: SmmGenerationHistoryItem = serverHistoryItem ?? {
         createdAt: new Date().toISOString(),
         durationMs,
         form: payload,
@@ -372,24 +467,6 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
     setResult(item.result);
     setLastSubmittedForm(item.form);
     setStatus(initialStatus);
-  }
-
-  function deleteHistoryItem(id: string) {
-    setHistoryItems((current) => current.filter((item) => item.id !== id));
-
-    if (activeHistoryId === id) {
-      const nextItem = historyItems.find((item) => item.id !== id);
-      setActiveHistoryId(nextItem?.id ?? '');
-      setResult(nextItem?.result ?? null);
-
-      if (nextItem) {
-        setForm(nextItem.form);
-        setLastSubmittedForm(nextItem.form);
-      } else {
-        setForm(initialForm);
-        setLastSubmittedForm(null);
-      }
-    }
   }
 
   function createNewGeneration() {
@@ -653,21 +730,6 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                         </span>
                       ) : null}
                     </button>
-                    <div className="px-4 pb-4">
-                      <button
-                        className={[
-                          'inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition',
-                          selected
-                            ? 'border-white/30 text-white hover:bg-white hover:text-neutral-950'
-                            : 'border-neutral-300 text-neutral-700 hover:border-neutral-950 hover:text-neutral-950',
-                        ].join(' ')}
-                        onClick={() => deleteHistoryItem(item.id)}
-                        type="button"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Видалити
-                      </button>
-                    </div>
                   </div>
                 );
               })}
