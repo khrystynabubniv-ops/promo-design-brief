@@ -481,20 +481,20 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          className="ct-secondary-action ct-action-compact"
           onClick={onBackToHub}
           type="button"
         >
-          <Layers3 className="h-4 w-4" aria-hidden="true" />
+          <Layers3 className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
           До пулу тулів
         </button>
 
         <button
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          className="ct-secondary-action ct-action-compact"
           onClick={createNewGeneration}
           type="button"
         >
-          <Plus className="h-4 w-4" aria-hidden="true" />
+          <Plus className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
           Нова генерація
         </button>
       </div>
@@ -502,14 +502,14 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <form className="space-y-5" onSubmit={handleSubmit}>
-            <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
+            <section className="ct-app-panel p-5">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="smmMaterial">
+                  <label className="ct-app-label" htmlFor="smmMaterial">
                     Матеріал / бриф / тема *
                   </label>
                   <textarea
-                    className="min-h-64 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field min-h-64 w-full p-4 leading-6"
                     id="smmMaterial"
                     placeholder="Вставте статтю, інтервʼю, тези або коротко опишіть тему..."
                     value={form.material}
@@ -518,11 +518,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="contentType">
+                  <label className="ct-app-label" htmlFor="contentType">
                     Тип контенту
                   </label>
                   <select
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="contentType"
                     value={form.contentType}
                     onChange={(event) => updateForm({ contentType: event.target.value as SmmContentType })}
@@ -536,11 +536,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="platform">
+                  <label className="ct-app-label" htmlFor="platform">
                     Майданчик
                   </label>
                   <select
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="platform"
                     value={form.platform}
                     onChange={(event) => updateForm({ platform: event.target.value as SmmPlatform })}
@@ -554,7 +554,7 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <fieldset className="md:col-span-2">
-                  <legend className="mb-2 text-sm font-semibold text-neutral-950">Формат</legend>
+                  <legend className="ct-app-label">Формат</legend>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {formatOptions.map((option) => {
                       const selected = form.format === option.value;
@@ -563,10 +563,8 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                         <button
                           aria-pressed={selected}
                           className={[
-                            'min-h-11 rounded-md border px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2',
-                            selected
-                              ? 'border-neutral-950 bg-neutral-950 text-white'
-                              : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
+                            'ct-choice-card min-h-11 px-3 py-2 text-left text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8] focus-visible:ring-offset-2',
+                            selected ? 'ct-choice-card-active' : '',
                           ].join(' ')}
                           key={option.value}
                           onClick={() => updateForm({ format: option.value })}
@@ -580,11 +578,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </fieldset>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="speaker">
+                  <label className="ct-app-label" htmlFor="speaker">
                     Спікер
                   </label>
                   <input
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="speaker"
                     placeholder="Імʼя для експертної каруселі"
                     value={form.speaker}
@@ -593,11 +591,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="variantsCount">
+                  <label className="ct-app-label" htmlFor="variantsCount">
                     Кількість варіантів
                   </label>
                   <select
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="variantsCount"
                     value={form.variantsCount}
                     onChange={(event) => updateForm({ variantsCount: Number(event.target.value) as 3 | 5 })}
@@ -611,11 +609,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="ctaTopic">
+                  <label className="ct-app-label" htmlFor="ctaTopic">
                     Тематика для CTA
                   </label>
                   <input
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="ctaTopic"
                     placeholder="які будують HR-комунікації"
                     value={form.ctaTopic}
@@ -624,11 +622,11 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="codeWord">
+                  <label className="ct-app-label" htmlFor="codeWord">
                     Кодове слово
                   </label>
                   <input
-                    className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                    className="ct-app-field h-11 w-full px-3"
                     id="codeWord"
                     placeholder="СТАТТЯ"
                     value={form.codeWord}
@@ -641,7 +639,7 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <button
-                  className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  className="ct-primary-action"
                   disabled={!canGenerate}
                   type="submit"
                 >
@@ -654,7 +652,7 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 </button>
 
                 <button
-                  className="inline-flex h-11 items-center gap-2 rounded-md border border-neutral-300 bg-white px-5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  className="ct-secondary-action"
                   disabled={!lastSubmittedForm || isLoading}
                   onClick={handleMoreVariants}
                   type="button"
@@ -667,10 +665,12 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
               {status.message ? (
                 <span
                   className={[
-                    'rounded-full px-3 py-1 text-xs font-semibold',
+                    'ct-status-pill',
                     status.kind === 'error'
-                      ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                      : 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200',
+                      ? 'ct-status-pill-error'
+                      : status.kind === 'success'
+                        ? 'ct-status-pill-success'
+                        : 'ct-status-pill-info',
                   ].join(' ')}
                 >
                   {status.message}
@@ -686,15 +686,15 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
           />
         </div>
 
-        <aside className="rounded-lg border border-neutral-200 bg-white shadow-soft">
-          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-4">
+        <aside className="ct-app-panel overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-[#e7e9ee] px-4 py-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-950 text-white">
+              <span className="ct-accent-icon">
                 <History className="h-4 w-4" aria-hidden="true" />
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-neutral-950">Історія</h2>
-                <p className="text-xs font-medium text-neutral-500">{historyItems.length} записів</p>
+                <h2 className="text-sm font-bold text-[#181b22]">Історія</h2>
+                <p className="text-xs font-medium text-[#7b8392]">{historyItems.length} записів</p>
               </div>
             </div>
           </div>
@@ -707,25 +707,25 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
                 return (
                   <div
                     className={[
-                      'border-b border-neutral-200 last:border-b-0',
-                      selected ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-900',
+                      'border-b border-[#e7e9ee] last:border-b-0',
+                      selected ? 'bg-[#f7f9ff] text-[#181b22]' : 'bg-white text-[#181b22]',
                     ].join(' ')}
                     key={item.id}
                   >
                     <button
-                      className="block w-full px-4 py-4 text-left transition hover:bg-neutral-50 hover:text-neutral-950"
+                      className="block w-full px-4 py-4 text-left transition hover:bg-[#fafbfc]"
                       onClick={() => selectHistoryItem(item)}
                       type="button"
                     >
                       <span className="block text-sm font-semibold leading-5">{item.title}</span>
-                      <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                      <span className={selected ? 'mt-2 block text-xs font-semibold text-[#1d4ed8]' : 'mt-2 block text-xs text-[#7b8392]'}>
                         {formatHistoryDate(item.createdAt)}
                       </span>
-                      <span className={selected ? 'mt-3 block text-xs text-neutral-300' : 'mt-3 block text-xs text-neutral-500'}>
+                      <span className={selected ? 'mt-3 block text-xs text-[#5b6472]' : 'mt-3 block text-xs text-[#7b8392]'}>
                         {trimPreview(item.form.material)}
                       </span>
                       {item.durationMs ? (
-                        <span className={selected ? 'mt-3 block text-xs font-semibold text-white' : 'mt-3 block text-xs font-semibold text-neutral-950'}>
+                        <span className={selected ? 'mt-3 block text-xs font-bold text-[#1d4ed8]' : 'mt-3 block text-xs font-bold text-[#181b22]'}>
                           {formatDuration(item.durationMs)}
                         </span>
                       ) : null}
@@ -736,8 +736,8 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
             </div>
           ) : (
             <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
-              <Inbox className="h-8 w-8 text-neutral-400" aria-hidden="true" />
-              <p className="mt-3 text-sm font-semibold text-neutral-950">Історія поки порожня</p>
+              <Inbox className="h-8 w-8 text-[#a4abb6]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-bold text-[#181b22]">Історія поки порожня</p>
             </div>
           )}
         </aside>
@@ -755,10 +755,10 @@ type SmmResultsProps = {
 function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
   if (!result) {
     return (
-      <section className="rounded-lg border border-dashed border-neutral-300 bg-white p-8 text-center">
-        <FileText className="mx-auto h-8 w-8 text-neutral-400" aria-hidden="true" />
-        <h2 className="mt-3 text-base font-semibold text-neutral-950">Результати зʼявляться тут</h2>
-        <p className="mt-2 text-sm leading-6 text-neutral-500">
+      <section className="ct-empty-state p-8 text-center">
+        <FileText className="mx-auto h-8 w-8 text-[#a4abb6]" aria-hidden="true" />
+        <h2 className="mt-3 text-base font-bold text-[#181b22]">Результати зʼявляться тут</h2>
+        <p className="mt-2 text-sm leading-6 text-[#7b8392]">
           Можна генерувати текст поста, структуру каруселі або обидва формати одразу.
         </p>
       </section>
@@ -772,22 +772,22 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
       {result.captions ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-normal text-neutral-950">Тексти поста</h2>
+            <h2 className="text-lg font-bold tracking-normal text-[#181b22]">Тексти поста</h2>
           </div>
           {result.captions.variants.map((variant, index) => {
             const copyKey = `caption-${index}`;
 
             return (
               <article
-                className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft"
+                className="ct-app-panel p-5"
                 key={`${variant.angle}-${index}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
                       Варіант {index + 1}
                     </p>
-                    <h3 className="mt-1 text-base font-semibold text-neutral-950">{variant.angle}</h3>
+                    <h3 className="mt-1 text-base font-bold text-[#181b22]">{variant.angle}</h3>
                   </div>
                   <CopyButton
                     copied={copiedKey === copyKey}
@@ -795,13 +795,13 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
                   />
                 </div>
 
-                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-800">{variant.text}</p>
-                <div className="mt-4 rounded-md border border-neutral-200 bg-neutral-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">CTA</p>
-                  <p className="mt-1 text-sm font-semibold text-neutral-950">{variant.cta}</p>
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#2a3038]">{variant.text}</p>
+                <div className="ct-app-panel-subtle mt-4 p-3">
+                  <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">CTA</p>
+                  <p className="mt-1 text-sm font-bold text-[#181b22]">{variant.cta}</p>
                 </div>
                 {variant.hashtags.length ? (
-                  <p className="mt-3 text-sm font-medium leading-6 text-neutral-500">
+                  <p className="mt-3 text-sm font-medium leading-6 text-[#7b8392]">
                     {variant.hashtags.join(' ')}
                   </p>
                 ) : null}
@@ -814,10 +814,10 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
       {carouselVariants.length ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-normal text-neutral-950">
+            <h2 className="text-lg font-bold tracking-normal text-[#181b22]">
               Карусельні варіанти
             </h2>
-            <p className="text-sm font-medium text-neutral-500">
+            <p className="text-sm font-medium text-[#7b8392]">
               {carouselVariants.length} варіанти
             </p>
           </div>
@@ -827,17 +827,17 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
 
             return (
               <article
-                className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft"
+                className="ct-app-panel p-5"
                 key={`${variant.angle}-${variantIndex}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
                       Варіант {variantIndex + 1}
                     </p>
-                    <h3 className="mt-1 text-base font-semibold text-neutral-950">{variant.angle}</h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">{variant.idea}</p>
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-500">{variant.audience}</p>
+                    <h3 className="mt-1 text-base font-bold text-[#181b22]">{variant.angle}</h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[#2a3038]">{variant.idea}</p>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-[#7b8392]">{variant.audience}</p>
                   </div>
                   <CopyButton
                     copied={copiedKey === copyKey}
@@ -845,24 +845,24 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
                   />
                 </div>
 
-                <div className="mt-5 overflow-hidden rounded-md border border-neutral-200">
+                <div className="mt-5 overflow-hidden rounded-[12px] border border-[#e7e9ee]">
                   {variant.slides.map((slide) => (
                     <div
-                      className="grid grid-cols-1 gap-3 border-b border-neutral-200 bg-neutral-50 p-4 last:border-b-0 md:grid-cols-[112px_1fr]"
+                      className="grid grid-cols-1 gap-3 border-b border-[#e7e9ee] bg-[#fafbfc] p-4 last:border-b-0 md:grid-cols-[112px_1fr]"
                       key={slide.n}
                     >
                       <div>
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-neutral-950 text-xs font-semibold text-white">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#1d4ed8] text-xs font-bold text-white">
                           {slide.n}
                         </span>
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        <p className="mt-2 text-xs font-bold uppercase tracking-normal text-[#939bab]">
                           {slide.role}
                         </p>
                       </div>
                       <div>
-                        <h4 className="text-sm font-semibold leading-6 text-neutral-950">{slide.headline}</h4>
-                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-800">{slide.body}</p>
-                        <p className="mt-3 text-xs font-medium leading-5 text-neutral-500">
+                        <h4 className="text-sm font-bold leading-6 text-[#181b22]">{slide.headline}</h4>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#2a3038]">{slide.body}</p>
+                        <p className="mt-3 text-xs font-medium leading-5 text-[#7b8392]">
                           {slide.visualHierarchy}
                         </p>
                       </div>
@@ -871,33 +871,33 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                  <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="ct-app-panel-subtle p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Підпис</p>
+                      <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">Підпис</p>
                       <CopyButton
                         copied={copiedKey === `carousel-caption-${variantIndex}`}
                         onClick={() => onCopy(variant.caption, `carousel-caption-${variantIndex}`)}
                       />
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-neutral-800">
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#2a3038]">
                       {variant.caption}
                     </p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">CTA</p>
-                      <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-800">
+                    <div className="ct-app-panel-subtle p-4">
+                      <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">CTA</p>
+                      <ul className="mt-2 space-y-2 text-sm leading-6 text-[#2a3038]">
                         {variant.ctas.map((cta) => (
                           <li key={cta}>{cta}</li>
                         ))}
                       </ul>
                     </div>
-                    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    <div className="ct-app-panel-subtle p-4">
+                      <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
                         Альт. заголовки
                       </p>
-                      <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-800">
+                      <ul className="mt-2 space-y-2 text-sm leading-6 text-[#2a3038]">
                         {variant.altHeadlines.map((headline) => (
                           <li key={headline}>{headline}</li>
                         ))}
@@ -922,11 +922,11 @@ type CopyButtonProps = {
 function CopyButton({ copied, onClick }: CopyButtonProps) {
   return (
     <button
-      className="inline-flex h-9 items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+      className="ct-secondary-action ct-action-small"
       onClick={onClick}
       type="button"
     >
-      <Clipboard className="h-3.5 w-3.5" aria-hidden="true" />
+      <Clipboard className="h-3.5 w-3.5 text-[#1d4ed8]" aria-hidden="true" />
       {copied ? 'Скопійовано' : 'Копіювати'}
     </button>
   );

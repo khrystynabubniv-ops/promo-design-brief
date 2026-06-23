@@ -43,29 +43,29 @@ export function Step3Notion({
     return (
       <section
         aria-labelledby="task-created-title"
-        className="rounded-lg border border-neutral-200 bg-white p-8 text-center shadow-soft"
+        className="ct-app-panel p-8 text-center"
         role="dialog"
       >
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
           <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
         </div>
-        <h2 className="mt-5 text-2xl font-semibold tracking-normal text-neutral-950" id="task-created-title">
+        <h2 className="mt-5 text-2xl font-bold tracking-normal text-[#181b22]" id="task-created-title">
           {childTaskLinks.length ? 'Задачі створено' : 'Задачу створено'}
         </h2>
 
         {status.message ? (
-          <p className="mt-2 text-sm font-medium text-neutral-500">{status.message}</p>
+          <p className="mt-2 text-sm font-medium text-[#7b8392]">{status.message}</p>
         ) : null}
 
         {childTaskLinks.length ? (
           <div className="mx-auto mt-5 max-w-xl text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
               Child-задачі
             </p>
             <div className="mt-3 space-y-2">
               {childTaskLinks.map((taskLink) => (
                 <a
-                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+                  className="flex min-h-10 items-center justify-between gap-3 rounded-[10px] border border-[#e3e6ec] bg-white px-3 py-2 text-sm font-semibold text-[#2a3038] transition hover:bg-[#f5f6f8]"
                   href={taskLink.url}
                   key={taskLink.id}
                   rel="noreferrer"
@@ -81,7 +81,7 @@ export function Step3Notion({
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <a
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            className="ct-primary-action"
             href={notionUrl}
             rel="noreferrer"
             target="_blank"
@@ -91,7 +91,7 @@ export function Step3Notion({
           </a>
 
           <button
-            className="inline-flex h-11 items-center gap-2 rounded-md border border-neutral-300 bg-white px-5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+            className="ct-secondary-action"
             onClick={onCreateNew}
             type="button"
           >
@@ -105,14 +105,14 @@ export function Step3Notion({
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
-      <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
+      <section className="ct-app-panel p-5">
         <div className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="taskName">
+            <label className="ct-app-label" htmlFor="taskName">
               Назва задачі *
             </label>
             <input
-              className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+              className="ct-app-field h-11 w-full px-3"
               id="taskName"
               placeholder="Promo вакансії Universe"
               value={form.name}
@@ -122,11 +122,11 @@ export function Step3Notion({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="deadline">
+              <label className="ct-app-label" htmlFor="deadline">
                 Deadline *
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="deadline"
                 type="date"
                 value={form.deadline}
@@ -135,11 +135,11 @@ export function Step3Notion({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="priority">
+              <label className="ct-app-label" htmlFor="priority">
                 Priority
               </label>
               <select
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="priority"
                 value={form.priority}
                 onChange={(event) => onFormChange({ priority: event.target.value as NotionTaskForm['priority'] })}
@@ -155,11 +155,11 @@ export function Step3Notion({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="platform">
+              <label className="ct-app-label" htmlFor="platform">
                 Platform
               </label>
               <select
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="platform"
                 value={form.platform}
                 onChange={(event) => onFormChange({ platform: event.target.value })}
@@ -174,7 +174,7 @@ export function Step3Notion({
 
             <div>
               <fieldset>
-                <legend className="mb-2 text-sm font-semibold text-neutral-950">Format</legend>
+                <legend className="ct-app-label">Format</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {FORMATS.map((format) => {
                     const selected = form.format === format;
@@ -183,10 +183,8 @@ export function Step3Notion({
                       <button
                         aria-pressed={selected}
                         className={[
-                          'min-h-11 rounded-md border px-3 py-2 text-left text-sm font-medium transition',
-                          selected
-                            ? 'border-neutral-950 bg-neutral-950 text-white'
-                            : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
+                          'ct-choice-card min-h-11 px-3 py-2 text-left text-sm font-bold',
+                          selected ? 'ct-choice-card-active' : '',
                         ].join(' ')}
                         key={format}
                         onClick={() => onFormChange({ format })}
@@ -202,7 +200,7 @@ export function Step3Notion({
           </div>
 
           <fieldset>
-            <legend className="mb-3 text-sm font-semibold text-neutral-950">Task Type *</legend>
+            <legend className="ct-app-label">Task Type *</legend>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {TASK_TYPES.map((taskType) => {
                 const selected = form.taskTypeId === taskType.pageId;
@@ -210,17 +208,15 @@ export function Step3Notion({
                 return (
                   <button
                     className={[
-                      'min-h-24 rounded-md border p-4 text-left transition',
-                      selected
-                        ? 'border-neutral-950 bg-neutral-950 text-white'
-                        : 'border-neutral-300 bg-neutral-50 text-neutral-900 hover:border-neutral-950 hover:bg-white',
+                      'ct-choice-card min-h-24 p-4 text-left',
+                      selected ? 'ct-choice-card-active' : '',
                     ].join(' ')}
                     key={taskType.pageId}
                     onClick={() => onFormChange({ taskTypeId: taskType.pageId })}
                     type="button"
                   >
-                    <span className="block text-sm font-semibold leading-5">{taskType.name}</span>
-                    <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                    <span className="block text-sm font-bold leading-5">{taskType.name}</span>
+                    <span className={selected ? 'mt-2 block text-xs text-[#3a5bbf]' : 'mt-2 block text-xs text-[#7b8392]'}>
                       {taskType.hours} год
                     </span>
                   </button>
@@ -233,7 +229,7 @@ export function Step3Notion({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
-          className="inline-flex h-11 items-center gap-2 rounded-md border border-neutral-300 bg-white px-5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950"
+          className="ct-secondary-action"
           onClick={onBack}
           type="button"
         >
@@ -245,10 +241,12 @@ export function Step3Notion({
           {status.message ? (
             <span
               className={[
-                'rounded-full px-3 py-1 text-xs font-semibold',
+                'ct-status-pill',
                 status.kind === 'error'
-                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                  : 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200',
+                  ? 'ct-status-pill-error'
+                  : status.kind === 'success'
+                    ? 'ct-status-pill-success'
+                    : 'ct-status-pill-info',
               ].join(' ')}
             >
               {status.message}
@@ -256,7 +254,7 @@ export function Step3Notion({
           ) : null}
 
           <button
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
+            className="ct-primary-action"
             disabled={isLoading}
             type="submit"
           >

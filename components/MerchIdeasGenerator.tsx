@@ -312,33 +312,33 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          className="ct-secondary-action ct-action-compact"
           onClick={onBackToHub}
           type="button"
         >
-          <Layers3 className="h-4 w-4" aria-hidden="true" />
+          <Layers3 className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
           До пулу тулів
         </button>
 
         <button
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+          className="ct-secondary-action ct-action-compact"
           onClick={createNewGeneration}
           type="button"
         >
-          <Plus className="h-4 w-4" aria-hidden="true" />
+          <Plus className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
           Нова генерація
         </button>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
-        <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
+        <section className="ct-app-panel p-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchAudience">
+              <label className="ct-app-label" htmlFor="merchAudience">
                 Аудиторія *
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchAudience"
                 placeholder="чоловіки 30-40, маркетологи IT-компаній"
                 value={form.audience}
@@ -347,11 +347,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchOccasion">
+              <label className="ct-app-label" htmlFor="merchOccasion">
                 Привід / тематика *
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchOccasion"
                 placeholder="івент, запуск продукту, welcome pack"
                 value={form.occasion}
@@ -360,11 +360,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchDirection">
+              <label className="ct-app-label" htmlFor="merchDirection">
                 Напрямок / формат *
               </label>
               <textarea
-                className="min-h-28 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field min-h-28 w-full p-4 leading-6"
                 id="merchDirection"
                 placeholder="щось їстивне брендоване в нестандартному пакуванні"
                 value={form.direction}
@@ -373,11 +373,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchBudget">
+              <label className="ct-app-label" htmlFor="merchBudget">
                 Бюджет
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchBudget"
                 placeholder="$20 за одиницю або $3000 total"
                 value={form.budget}
@@ -386,11 +386,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchQuantity">
+              <label className="ct-app-label" htmlFor="merchQuantity">
                 Кількість одиниць
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchQuantity"
                 placeholder="100, 500, 1000"
                 value={form.quantity}
@@ -399,11 +399,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchReferences">
+              <label className="ct-app-label" htmlFor="merchReferences">
                 Бренди-референси
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchReferences"
                 placeholder={referenceBrandsPlaceholder}
                 value={form.referenceBrands}
@@ -412,11 +412,11 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-neutral-950" htmlFor="merchIdeasCount">
+              <label className="ct-app-label" htmlFor="merchIdeasCount">
                 Кількість ідей
               </label>
               <input
-                className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-950 focus:bg-white"
+                className="ct-app-field h-11 w-full px-3"
                 id="merchIdeasCount"
                 max={5}
                 min={1}
@@ -430,7 +430,7 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+            className="ct-primary-action"
             disabled={!canGenerate}
             type="submit"
           >
@@ -445,10 +445,12 @@ export function MerchIdeasGenerator({ onBackToHub }: MerchIdeasGeneratorProps) {
           {status.message ? (
             <span
               className={[
-                'rounded-full px-3 py-1 text-xs font-semibold',
+                'ct-status-pill',
                 status.kind === 'error'
-                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                  : 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200',
+                  ? 'ct-status-pill-error'
+                  : status.kind === 'success'
+                    ? 'ct-status-pill-success'
+                    : 'ct-status-pill-info',
               ].join(' ')}
             >
               {status.message}
@@ -480,15 +482,15 @@ type MerchIdeasHistoryProps = {
 
 function MerchIdeasHistory({ activeId, items, onSelect }: MerchIdeasHistoryProps) {
   return (
-    <section className="rounded-lg border border-neutral-200 bg-white shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+    <section className="ct-app-panel overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7e9ee] px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-950 text-white">
+          <span className="ct-accent-icon">
             <History className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-neutral-950">Історія ідей</h2>
-            <p className="text-xs font-medium text-neutral-500">{items.length} записів за 30 днів</p>
+            <h2 className="text-base font-bold text-[#181b22]">Історія ідей</h2>
+            <p className="text-xs font-medium text-[#7b8392]">{items.length} записів за 30 днів</p>
           </div>
         </div>
       </div>
@@ -502,29 +504,29 @@ function MerchIdeasHistory({ activeId, items, onSelect }: MerchIdeasHistoryProps
             return (
               <button
                 className={[
-                  'border-b border-neutral-200 px-5 py-4 text-left transition md:border-r xl:[&:nth-child(3n)]:border-r-0',
-                  selected ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50',
+                  'border-b border-[#e7e9ee] px-5 py-4 text-left transition md:border-r xl:[&:nth-child(3n)]:border-r-0',
+                  selected ? 'bg-[#f7f9ff] text-[#181b22]' : 'bg-white text-[#181b22] hover:bg-[#fafbfc]',
                 ].join(' ')}
                 key={item.id}
                 onClick={() => onSelect(item)}
                 type="button"
               >
                 <span className="block text-sm font-semibold leading-5">{item.title}</span>
-                <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                <span className={selected ? 'mt-2 block text-xs font-semibold text-[#1d4ed8]' : 'mt-2 block text-xs text-[#7b8392]'}>
                   {formatHistoryDate(item.createdAt)}
                 </span>
-                <span className={selected ? 'mt-3 block text-xs text-neutral-300' : 'mt-3 block text-xs text-neutral-500'}>
+                <span className={selected ? 'mt-3 block text-xs text-[#5b6472]' : 'mt-3 block text-xs text-[#7b8392]'}>
                   {trimPreview([
                     item.form.audience,
                     item.form.occasion,
                     item.form.direction,
                   ].filter(Boolean).join(' · '))}
                 </span>
-                <span className={selected ? 'mt-3 block text-xs font-semibold text-white' : 'mt-3 block text-xs font-semibold text-neutral-950'}>
+                <span className={selected ? 'mt-3 block text-xs font-bold text-[#1d4ed8]' : 'mt-3 block text-xs font-bold text-[#181b22]'}>
                   {item.result.ideas.length} ідей{item.durationMs ? ` · ${formatDuration(item.durationMs)}` : ''}
                 </span>
                 {firstIdea ? (
-                  <span className={selected ? 'mt-2 block text-xs text-neutral-300' : 'mt-2 block text-xs text-neutral-500'}>
+                  <span className={selected ? 'mt-2 block text-xs text-[#5b6472]' : 'mt-2 block text-xs text-[#7b8392]'}>
                     {firstIdea.company}
                   </span>
                 ) : null}
@@ -534,8 +536,8 @@ function MerchIdeasHistory({ activeId, items, onSelect }: MerchIdeasHistoryProps
         </div>
       ) : (
         <div className="flex min-h-40 flex-col items-center justify-center px-5 py-10 text-center">
-          <Inbox className="h-8 w-8 text-neutral-400" aria-hidden="true" />
-          <p className="mt-3 text-sm font-semibold text-neutral-950">Історія поки порожня</p>
+          <Inbox className="h-8 w-8 text-[#a4abb6]" aria-hidden="true" />
+          <p className="mt-3 text-sm font-bold text-[#181b22]">Історія поки порожня</p>
         </div>
       )}
     </section>
@@ -545,10 +547,10 @@ function MerchIdeasHistory({ activeId, items, onSelect }: MerchIdeasHistoryProps
 function MerchIdeasResults({ result }: MerchIdeasResultsProps) {
   if (!result) {
     return (
-      <section className="rounded-lg border border-dashed border-neutral-300 bg-white p-8 text-center">
-        <Search className="mx-auto h-8 w-8 text-neutral-400" aria-hidden="true" />
-        <h2 className="mt-3 text-base font-semibold text-neutral-950">Ідеї зʼявляться тут</h2>
-        <p className="mt-2 text-sm leading-6 text-neutral-500">
+      <section className="ct-empty-state p-8 text-center">
+        <Search className="mx-auto h-8 w-8 text-[#a4abb6]" aria-hidden="true" />
+        <h2 className="mt-3 text-base font-bold text-[#181b22]">Ідеї зʼявляться тут</h2>
+        <p className="mt-2 text-sm leading-6 text-[#7b8392]">
           Кожна картка матиме референс компанії, пояснення й формат пакування.
         </p>
       </section>
@@ -558,8 +560,8 @@ function MerchIdeasResults({ result }: MerchIdeasResultsProps) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-normal text-neutral-950">Ідеї для мерчу та подарунків</h2>
-        <p className="text-sm font-medium text-neutral-500">{result.ideas.length} ідей</p>
+        <h2 className="text-lg font-bold tracking-normal text-[#181b22]">Ідеї для мерчу та подарунків</h2>
+        <p className="text-sm font-medium text-[#7b8392]">{result.ideas.length} ідей</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -580,14 +582,14 @@ function MerchIdeaCard({ idea, index }: MerchIdeaCardProps) {
   const sourceUrl = idea.source_url.trim();
 
   return (
-    <article className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
+    <article className="ct-app-panel p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
             Ідея {index + 1}
           </p>
-          <h3 className="mt-1 text-lg font-semibold leading-7 text-neutral-950">{idea.title}</h3>
-          <p className="mt-2 inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1 text-sm font-semibold text-neutral-700">
+          <h3 className="mt-1 text-lg font-bold leading-7 text-[#181b22]">{idea.title}</h3>
+          <p className="mt-2 inline-flex items-center gap-2 rounded-[9px] border border-[#dbe4ff] bg-[#f7f9ff] px-3 py-1 text-sm font-bold text-[#1d4ed8]">
             <Gift className="h-4 w-4" aria-hidden="true" />
             {idea.company}
           </p>
@@ -595,7 +597,7 @@ function MerchIdeaCard({ idea, index }: MerchIdeaCardProps) {
 
         {sourceUrl && isHttpUrl(sourceUrl) ? (
           <a
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-900 transition hover:border-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+            className="ct-secondary-action ct-action-small"
             href={sourceUrl}
             rel="noreferrer"
             target="_blank"
@@ -607,24 +609,24 @@ function MerchIdeaCard({ idea, index }: MerchIdeaCardProps) {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Що зробила компанія</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-800">{idea.case}</p>
+        <div className="ct-app-panel-subtle p-4">
+          <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">Що зробила компанія</p>
+          <p className="mt-2 text-sm leading-6 text-[#2a3038]">{idea.case}</p>
         </div>
 
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Чому пасує</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-800">{idea.why_fits}</p>
+        <div className="ct-app-panel-subtle p-4">
+          <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">Чому пасує</p>
+          <p className="mt-2 text-sm leading-6 text-[#2a3038]">{idea.why_fits}</p>
         </div>
 
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 lg:col-span-2">
+        <div className="ct-app-panel-subtle p-4 lg:col-span-2">
           <div className="flex items-center gap-2">
-            <PackageCheck className="h-4 w-4 text-neutral-500" aria-hidden="true" />
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            <PackageCheck className="h-4 w-4 text-[#1d4ed8]" aria-hidden="true" />
+            <p className="text-xs font-bold uppercase tracking-normal text-[#939bab]">
               Формат / пакування
             </p>
           </div>
-          <p className="mt-2 text-sm leading-6 text-neutral-800">{idea.format_packaging}</p>
+          <p className="mt-2 text-sm leading-6 text-[#2a3038]">{idea.format_packaging}</p>
         </div>
       </div>
     </article>

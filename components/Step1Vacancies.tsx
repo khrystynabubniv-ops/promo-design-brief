@@ -22,27 +22,27 @@ export function Step1Vacancies({
 
   return (
     <div className="space-y-5">
-      <details className="rounded-lg border border-neutral-200 bg-white shadow-soft">
-        <summary className="group flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-semibold text-neutral-950">
+      <details className="ct-app-panel">
+        <summary className="group flex cursor-pointer list-none items-center justify-between px-5 py-4 text-[14px] font-bold text-[#181b22]">
           <span>Системний промпт</span>
-          <ChevronDown className="h-4 w-4 group-open:hidden" aria-hidden="true" />
-          <ChevronUp className="hidden h-4 w-4 group-open:block" aria-hidden="true" />
+          <ChevronDown className="h-4 w-4 text-[#5b6472] group-open:hidden" aria-hidden="true" />
+          <ChevronUp className="hidden h-4 w-4 text-[#1d4ed8] group-open:block" aria-hidden="true" />
         </summary>
-        <div className="border-t border-neutral-200 p-5">
+        <div className="border-t border-[#e7e9ee] p-5">
           <textarea
-            className="min-h-96 w-full rounded-md border border-neutral-300 bg-neutral-100 p-4 text-sm leading-6 text-neutral-900 outline-none"
+            className="ct-app-field min-h-96 w-full p-4 leading-6"
             readOnly
             value={systemPrompt}
           />
         </div>
       </details>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
-        <label className="mb-3 block text-sm font-semibold text-neutral-950" htmlFor="vacancies">
+      <section className="ct-app-panel p-5">
+        <label className="ct-app-label" htmlFor="vacancies">
           Вакансії від рекрутера
         </label>
         <textarea
-          className="min-h-80 w-full rounded-md border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:bg-white"
+          className="ct-app-field min-h-80 w-full p-4 leading-6"
           id="vacancies"
           placeholder="Вставте текст вакансій або публічні Ashby-лінки..."
           rows={12}
@@ -53,7 +53,7 @@ export function Step1Vacancies({
 
       <div className="flex flex-wrap items-center gap-3">
         <button
-          className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
+          className="ct-primary-action"
           disabled={isLoading || !vacancies.trim()}
           onClick={onGenerate}
           type="button"
@@ -69,10 +69,12 @@ export function Step1Vacancies({
         {status.message ? (
           <span
             className={[
-              'rounded-full px-3 py-1 text-xs font-semibold',
+              'ct-status-pill',
               status.kind === 'error'
-                ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                : 'bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200',
+                ? 'ct-status-pill-error'
+                : status.kind === 'success'
+                  ? 'ct-status-pill-success'
+                  : 'ct-status-pill-info',
             ].join(' ')}
           >
             {status.message}
