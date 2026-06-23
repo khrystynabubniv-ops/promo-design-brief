@@ -146,6 +146,24 @@ export const CAROUSEL_SCHEMA_INSTRUCTION = `{
   ]
 }`;
 
+export const CAROUSEL_VARIANT_SCHEMA_INSTRUCTION = `{
+  "angle": "короткий опис кута варіанту (3-5 слів)",
+  "idea": "загальна ідея цієї каруселі: про що пост і яку думку забере людина",
+  "audience": "кому цей пост найцікавіший",
+  "slides": [
+    {
+      "n": 1,
+      "role": "роль слайду (Зачепити / Контекст / Головна думка / Конкретика / Висновок / CTA)",
+      "headline": "заголовок слайду",
+      "body": "основний текст слайду",
+      "visualHierarchy": "що найбільше, що другорядне, що винести в цифру/цитату, де лишити повітря"
+    }
+  ],
+  "caption": "підпис до посту в TOV Universe",
+  "ctas": ["варіант 1", "варіант 2", "варіант 3"],
+  "altHeadlines": ["хедлайн 1", "хедлайн 2", "хедлайн 3", "хедлайн 4", "хедлайн 5"]
+}`;
+
 export function getSmmSchemaInstruction(format: SmmAtomicFormat) {
   return format === 'caption' ? CAPTION_SCHEMA_INSTRUCTION : CAROUSEL_SCHEMA_INSTRUCTION;
 }

@@ -1,10 +1,12 @@
 import { SMM_SYSTEM_PROMPT } from './systemPrompt';
-import { buildSmmUserMessage } from './userMessage';
+import { buildSmmCarouselVariantUserMessage, buildSmmUserMessage } from './userMessage';
 import {
   captionResultSchema,
   carouselResultSchema,
+  carouselVariantSchema,
   type CaptionResult,
   type CarouselResult,
+  type CarouselVariant,
   merchIdeasResultSchema,
   type MerchIdeasRequest,
   type MerchIdeasResult,
@@ -18,6 +20,7 @@ const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-4.6';
 const DEFAULT_OPENROUTER_TEMPERATURE = 0.8;
 const DEFAULT_OPENROUTER_TIMEOUT_MS = 120000;
 const OPENROUTER_RETRY_DELAYS_MS = [800, 1800];
+const CAROUSEL_VARIANT_CONCURRENCY = 2;
 
 type OpenRouterMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -177,6 +180,56 @@ function stripJsonFence(value: string) {
     .trim();
 }
 
+function extractJsonObject(value: string) {
+  const strippedValue = stripJsonFence(value);
+  const firstBraceIndex = strippedValue.indexOf('{');
+
+  if (firstBraceIndex === -1) {
+    return strippedValue;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = firstBraceIndex; index < strippedValue.length; index += 1) {
+    const character = strippedValue[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (character === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (character === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (character === '{') {
+      depth += 1;
+    }
+
+    if (character === '}') {
+      depth -= 1;
+
+      if (depth === 0) {
+        return strippedValue.slice(firstBraceIndex, index + 1);
+      }
+    }
+  }
+
+  return strippedValue.slice(firstBraceIndex);
+}
+
 function getMessageContentText(content: OpenRouterMessageContent | undefined) {
   if (typeof content === 'string') {
     return content;
@@ -197,7 +250,7 @@ function parseAndValidateCompletion(content: string, format: SmmAtomicFormat) {
   let parsed: unknown;
 
   try {
-    parsed = JSON.parse(stripJsonFence(content));
+    parsed = JSON.parse(extractJsonObject(content));
   } catch {
     throw new Error('Модель повернула невалідний JSON.');
   }
@@ -205,6 +258,18 @@ function parseAndValidateCompletion(content: string, format: SmmAtomicFormat) {
   return format === 'caption'
     ? captionResultSchema.parse(parsed)
     : carouselResultSchema.parse(parsed);
+}
+
+function parseAndValidateCarouselVariant(content: string) {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(extractJsonObject(content));
+  } catch {
+    throw new Error('Модель повернула невалідний JSON.');
+  }
+
+  return carouselVariantSchema.parse(parsed);
 }
 
 function buildJsonRepairPrompt(format: SmmAtomicFormat, error: unknown) {
@@ -316,11 +381,106 @@ export async function generateSmmContent(
   }
 }
 
+async function generateCarouselVariant(
+  params: SmmGenerateRequest,
+  variantIndex: number,
+): Promise<CarouselVariant> {
+  const baseMessages: OpenRouterMessage[] = [
+    {
+      role: 'system',
+      content: SMM_SYSTEM_PROMPT,
+    },
+    {
+      role: 'user',
+      content: buildSmmCarouselVariantUserMessage(params, variantIndex),
+    },
+  ];
+  const firstContent = await requestOpenRouterCompletion({
+    format: 'carousel',
+    messages: baseMessages,
+  });
+
+  try {
+    return parseAndValidateCarouselVariant(firstContent);
+  } catch (validationError) {
+    console.warn('[generate-smm] invalid carousel variant JSON, retrying once', {
+      variantIndex,
+      error: validationError instanceof Error ? validationError.message : 'unknown validation error',
+    });
+
+    const repairedContent = await requestOpenRouterCompletion({
+      format: 'carousel',
+      messages: [
+        ...baseMessages,
+        {
+          role: 'assistant',
+          content: firstContent,
+        },
+        {
+          role: 'user',
+          content: `Попередня відповідь не є валідним JSON-обʼєктом варіанту каруселі.
+
+Поверни лише один валідний JSON-обʼєкт за схемою. Без markdown, без бектиків, без wrapper-поля variants, без пояснень.`,
+        },
+      ],
+    });
+
+    try {
+      return parseAndValidateCarouselVariant(repairedContent);
+    } catch (secondValidationError) {
+      const details = secondValidationError instanceof Error
+        ? secondValidationError.message
+        : 'JSON не пройшов валідацію.';
+
+      throw new Error(`Не вдалося згенерувати валідний JSON для варіанту каруселі ${variantIndex}. ${details}`);
+    }
+  }
+}
+
+async function mapWithConcurrency<T, U>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<U>,
+) {
+  const results: U[] = [];
+  let nextIndex = 0;
+
+  async function worker() {
+    for (;;) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+
+      if (currentIndex >= values.length) {
+        return;
+      }
+
+      results[currentIndex] = await mapper(values[currentIndex]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
+  );
+
+  return results;
+}
+
+async function generateCarouselResult(params: SmmGenerateRequest): Promise<CarouselResult> {
+  const variantIndexes = Array.from({ length: params.variantsCount }, (_, index) => index + 1);
+  const variants = await mapWithConcurrency(
+    variantIndexes,
+    CAROUSEL_VARIANT_CONCURRENCY,
+    (variantIndex) => generateCarouselVariant(params, variantIndex),
+  );
+
+  return { variants };
+}
+
 export async function generateSmmResult(params: SmmGenerateRequest): Promise<SmmGenerationResult> {
   if (params.format === 'both') {
     const [captions, carousel] = await Promise.all([
       generateSmmContent(params, 'caption') as Promise<CaptionResult>,
-      generateSmmContent(params, 'carousel') as Promise<CarouselResult>,
+      generateCarouselResult(params),
     ]);
 
     return { captions, carousel };
@@ -333,7 +493,7 @@ export async function generateSmmResult(params: SmmGenerateRequest): Promise<Smm
   }
 
   return {
-    carousel: await generateSmmContent(params, 'carousel') as CarouselResult,
+    carousel: await generateCarouselResult(params),
   };
 }
 
@@ -383,7 +543,7 @@ function parseMerchIdeasResult(content: string): MerchIdeasResult {
   let parsed: unknown;
 
   try {
-    parsed = JSON.parse(stripJsonFence(content));
+    parsed = JSON.parse(extractJsonObject(content));
   } catch {
     throw new Error('OpenRouter повернув відповідь не у форматі валідного JSON. Спробуйте згенерувати ще раз.');
   }
