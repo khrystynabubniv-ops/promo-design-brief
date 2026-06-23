@@ -60,6 +60,15 @@ type OpenRouterTool = {
   };
 };
 
+export type OpenRouterTextMessage = OpenRouterMessage;
+
+export type OpenRouterTextCompletionParams = {
+  maxTokens?: number;
+  messages: OpenRouterTextMessage[];
+  temperature?: number;
+  timeoutMs?: number;
+};
+
 function toAsciiHeaderValue(value: string | undefined, fallbackValue: string) {
   const asciiValue = value?.replace(/[^\x20-\x7E]/g, '').trim();
   return asciiValue || fallbackValue;
@@ -628,4 +637,44 @@ async function requestOpenRouterMerchIdeas(params: MerchIdeasRequest) {
 
 export async function generateMerchIdeas(params: MerchIdeasRequest): Promise<MerchIdeasResult> {
   return parseMerchIdeasResult(await requestOpenRouterMerchIdeas(params));
+}
+
+export async function requestOpenRouterTextCompletion({
+  maxTokens = 5000,
+  messages,
+  temperature,
+  timeoutMs = getOpenRouterTimeoutMs(),
+}: OpenRouterTextCompletionParams) {
+  const response = await fetchWithTimeout(
+    OPENROUTER_API_URL,
+    {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+        max_tokens: maxTokens,
+        temperature: temperature ?? getOpenRouterTemperature(),
+        messages,
+      }),
+    },
+    timeoutMs,
+  ).catch((error: unknown) => {
+    throw new Error(getNetworkErrorMessage(error, timeoutMs));
+  });
+
+  const data = await parseJsonResponse<OpenRouterResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      data.error?.message ?? `OpenRouter API повернув помилку ${response.status}.`,
+    );
+  }
+
+  const content = getMessageContentText(data.choices?.[0]?.message?.content);
+
+  if (!content.trim()) {
+    throw new Error('OpenRouter API не повернув текст відповіді.');
+  }
+
+  return content;
 }

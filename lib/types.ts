@@ -68,7 +68,7 @@ export type RequestHistoryItem = {
   timings: RequestTimings;
 };
 
-export type GenerationHistoryTool = 'brief' | 'smm' | 'merch';
+export type GenerationHistoryTool = 'articles' | 'brief' | 'smm' | 'merch';
 
 export type GenerationHistoryItem = {
   id: string;

@@ -11,6 +11,7 @@ import { RequestHistory } from '@/components/RequestHistory';
 import { SmmGenerator } from '@/components/SmmGenerator';
 import { ToolHub } from '@/components/ToolHub';
 import { MerchIdeasGenerator } from '@/components/MerchIdeasGenerator';
+import { ArticlesView } from '@/features/articles/components/ArticlesView';
 import { DEFAULT_PROMPT } from '@/lib/constants';
 import { fetchGenerationHistory, getStringField } from '@/lib/historyClient';
 import type {
@@ -28,9 +29,10 @@ const MAX_HISTORY_ITEMS = 150;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
-type ActiveTool = 'hub' | 'brief' | 'smm' | 'merch';
+type ActiveTool = 'articles' | 'hub' | 'brief' | 'smm' | 'merch';
 
 const toolPaths: Record<ActiveTool, string> = {
+  articles: '/articles',
   brief: '/brief',
   hub: '/',
   merch: '/merch',
@@ -336,6 +338,10 @@ function getActiveToolFromPathname(pathname: string | null): ActiveTool {
     return 'merch';
   }
 
+  if (pathname === '/articles') {
+    return 'articles';
+  }
+
   return 'hub';
 }
 
@@ -368,6 +374,10 @@ export default function Home() {
 
     if (activeTool === 'merch') {
       return 'Merch & Gifts Ideas';
+    }
+
+    if (activeTool === 'articles') {
+      return 'Написання статей і прес-релізів';
     }
 
     return 'PR Comms tools';
@@ -710,6 +720,10 @@ export default function Home() {
     setNotionForm((current) => ({ ...current, ...patch }));
   }
 
+  if (activeTool === 'articles') {
+    return <ArticlesView onBackToHub={() => openTool('hub')} />;
+  }
+
   return (
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -726,6 +740,7 @@ export default function Home() {
 
         {activeTool === 'hub' ? (
           <ToolHub
+            onOpenArticles={() => openTool('articles')}
             onOpenBrief={openBriefGenerator}
             onOpenMerchIdeas={() => openTool('merch')}
             onOpenSmm={() => openTool('smm')}
@@ -796,6 +811,7 @@ export default function Home() {
         {activeTool === 'merch' ? (
           <MerchIdeasGenerator onBackToHub={() => openTool('hub')} />
         ) : null}
+
       </div>
     </main>
   );

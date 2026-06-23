@@ -1,8 +1,9 @@
 'use client';
 
-import { ArrowRight, FileText, Gift, Layers3, Sparkles } from 'lucide-react';
+import { ArrowRight, FileText, Gift, Layers3, Newspaper, Sparkles } from 'lucide-react';
 
 type ToolHubProps = {
+  onOpenArticles: () => void;
   onOpenBrief: () => void;
   onOpenMerchIdeas: () => void;
   onOpenSmm: () => void;
@@ -39,9 +40,19 @@ const tools = [
     onOpenKey: 'merch',
     status: 'Новий',
   },
+  {
+    accent: 'bg-rose-50 text-rose-700 ring-rose-200',
+    cta: 'Відкрити редактор',
+    description: 'Бриф, факти й картки спікерів перетворюються на статті, колонки, коментарі та прес-релізи.',
+    icon: Newspaper,
+    label: 'Articles & Press Releases',
+    meta: 'Бриф → чернетка → редактор',
+    onOpenKey: 'articles',
+    status: 'Beta',
+  },
 ] as const;
 
-export function ToolHub({ onOpenBrief, onOpenMerchIdeas, onOpenSmm }: ToolHubProps) {
+export function ToolHub({ onOpenArticles, onOpenBrief, onOpenMerchIdeas, onOpenSmm }: ToolHubProps) {
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-neutral-200 bg-white p-6 shadow-soft">
@@ -64,14 +75,16 @@ export function ToolHub({ onOpenBrief, onOpenMerchIdeas, onOpenSmm }: ToolHubPro
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {tools.map((tool) => {
           const Icon = tool.icon;
           const handleOpen = tool.onOpenKey === 'brief'
             ? onOpenBrief
             : tool.onOpenKey === 'smm'
               ? onOpenSmm
-              : onOpenMerchIdeas;
+              : tool.onOpenKey === 'merch'
+                ? onOpenMerchIdeas
+                : onOpenArticles;
 
           return (
             <button

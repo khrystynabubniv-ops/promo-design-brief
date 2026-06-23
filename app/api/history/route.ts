@@ -8,7 +8,7 @@ import type { GenerationHistoryTool } from '@/lib/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const allowedTools = new Set<GenerationHistoryTool>(['brief', 'smm', 'merch']);
+const allowedTools = new Set<GenerationHistoryTool>(['articles', 'brief', 'smm', 'merch']);
 
 function parseLimit(value: string | null) {
   const parsed = Number.parseInt(value ?? '', 10);
