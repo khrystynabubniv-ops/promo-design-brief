@@ -115,7 +115,7 @@ function getMaxTokens(format: SmmAtomicFormat) {
 }
 
 function getMerchMaxTokens(ideasCount: number) {
-  return Math.min(4500, Math.max(1600, ideasCount * 550 + 500));
+  return Math.min(7000, Math.max(2600, ideasCount * 900 + 900));
 }
 
 function getHeaders() {
@@ -576,9 +576,9 @@ async function requestOpenRouterMerchIdeas(params: MerchIdeasRequest) {
       type: 'openrouter:web_search',
       parameters: {
         engine: 'auto',
-        max_results: 3,
-        max_total_results: Math.max(4, Math.min(8, params.ideasCount * 2)),
-        search_context_size: 'low',
+        max_results: 4,
+        max_total_results: Math.max(6, Math.min(12, params.ideasCount * 3)),
+        search_context_size: 'medium',
       },
     },
   ];
