@@ -77,6 +77,12 @@ export const smmGenerationResultSchema = z.object({
   message: 'Потрібен captions або carousel.',
 });
 
+export const smmReviseRequestSchema = z.object({
+  form: smmGenerateRequestSchema,
+  instruction: trimmedString,
+  result: smmGenerationResultSchema,
+});
+
 export const merchIdeasRequestSchema = z.object({
   audience: trimmedString,
   occasion: trimmedString,
@@ -109,6 +115,7 @@ export type CaptionResult = z.infer<typeof captionResultSchema>;
 export type CarouselVariant = z.infer<typeof carouselVariantSchema>;
 export type CarouselResult = z.infer<typeof carouselResultSchema>;
 export type SmmGenerationResult = z.infer<typeof smmGenerationResultSchema>;
+export type SmmReviseRequest = z.infer<typeof smmReviseRequestSchema>;
 export type MerchIdeasRequest = z.infer<typeof merchIdeasRequestSchema>;
 export type MerchIdea = z.infer<typeof merchIdeaSchema>;
 export type MerchIdeasResult = z.infer<typeof merchIdeasResultSchema>;

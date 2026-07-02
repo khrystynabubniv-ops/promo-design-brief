@@ -8,6 +8,7 @@ import {
   Inbox,
   Layers3,
   Loader2,
+  PencilLine,
   Plus,
   RefreshCw,
   WandSparkles,
@@ -64,6 +65,8 @@ type GenerateSmmResponse = {
   historyItem?: GenerationHistoryItem | null;
   result?: SmmGenerationResult;
 };
+
+type ReviseSmmResponse = GenerateSmmResponse;
 
 const initialStatus: ActionStatus = { kind: 'idle' };
 
@@ -337,9 +340,12 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
   const [activeHistoryId, setActiveHistoryId] = useState('');
   const [lastSubmittedForm, setLastSubmittedForm] = useState<SmmGenerateRequest | null>(null);
   const [copiedKey, setCopiedKey] = useState('');
+  const [revisionInstruction, setRevisionInstruction] = useState('');
 
   const canGenerate = Boolean(form.material.trim()) && status.kind !== 'loading';
   const isLoading = status.kind === 'loading';
+  const isRevisionLoading = status.kind === 'loading' && status.message === 'Доопрацьовуємо результат...';
+  const canRevise = Boolean(result && revisionInstruction.trim()) && !isLoading;
 
   const selectedHistoryItem = useMemo(
     () => historyItems.find((item) => item.id === activeHistoryId) ?? null,
@@ -436,6 +442,7 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
 
       setResult(data.result);
       saveHistoryItem(historyItem);
+      setRevisionInstruction('');
       setStatus({
         kind: 'success',
         message: `Готово за ${formatDuration(data.durationMs ?? durationMs)}.`,
@@ -466,13 +473,81 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
     setForm(item.form);
     setResult(item.result);
     setLastSubmittedForm(item.form);
+    setRevisionInstruction('');
     setStatus(initialStatus);
+  }
+
+  async function submitRevision() {
+    const instruction = revisionInstruction.trim();
+
+    if (!result || !instruction) {
+      setStatus({ kind: 'error', message: 'Додайте правку до результату.' });
+      return;
+    }
+
+    const sourceForm = selectedHistoryItem?.form ?? lastSubmittedForm ?? buildFormPayload(form);
+
+    if (!sourceForm.material.trim()) {
+      setStatus({ kind: 'error', message: 'Немає початкового матеріалу для доопрацювання.' });
+      return;
+    }
+
+    const requestStartedAt = performance.now();
+
+    setStatus({ kind: 'loading', message: 'Доопрацьовуємо результат...' });
+
+    try {
+      const response = await fetch('/api/generate-smm/revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          form: buildFormPayload(sourceForm),
+          instruction,
+          result,
+        }),
+      });
+      const data = await readApiJson<ReviseSmmResponse>(response);
+
+      if (!response.ok || !data.result) {
+        throw new Error(data.error ?? `Не вдалося доопрацювати результат. Сервер повернув ${response.status}.`);
+      }
+
+      const durationMs = Math.round(performance.now() - requestStartedAt);
+      const serverHistoryItem = data.historyItem
+        ? mapServerHistoryItem(data.historyItem)
+        : null;
+      const revisedForm = buildFormPayload(sourceForm);
+      const historyItem: SmmGenerationHistoryItem = serverHistoryItem ?? {
+        createdAt: new Date().toISOString(),
+        durationMs,
+        form: revisedForm,
+        id: createHistoryId(),
+        result: data.result,
+        title: `Доопрацювання: ${deriveTitle(revisedForm.material)}`,
+      };
+
+      setForm(revisedForm);
+      setLastSubmittedForm(revisedForm);
+      setResult(data.result);
+      saveHistoryItem(historyItem);
+      setRevisionInstruction('');
+      setStatus({
+        kind: 'success',
+        message: `Доопрацьовано за ${formatDuration(data.durationMs ?? durationMs)}.`,
+      });
+    } catch (error) {
+      setStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Сталася помилка доопрацювання.',
+      });
+    }
   }
 
   function createNewGeneration() {
     setForm(initialForm);
     setResult(null);
     setLastSubmittedForm(null);
+    setRevisionInstruction('');
     setStatus(initialStatus);
     setActiveHistoryId('');
   }
@@ -680,9 +755,14 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
           </form>
 
           <SmmResults
+            canRevise={canRevise}
             copiedKey={copiedKey}
+            isRevisionLoading={isRevisionLoading}
+            revisionInstruction={revisionInstruction}
             result={result}
             onCopy={copyText}
+            onRevise={submitRevision}
+            onRevisionInstructionChange={setRevisionInstruction}
           />
         </div>
 
@@ -747,12 +827,26 @@ export function SmmGenerator({ onBackToHub }: SmmGeneratorProps) {
 }
 
 type SmmResultsProps = {
+  canRevise: boolean;
   copiedKey: string;
+  isRevisionLoading: boolean;
+  revisionInstruction: string;
   result: SmmGenerationResult | null;
   onCopy: (value: string, key: string) => void;
+  onRevise: () => void;
+  onRevisionInstructionChange: (value: string) => void;
 };
 
-function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
+function SmmResults({
+  canRevise,
+  copiedKey,
+  isRevisionLoading,
+  revisionInstruction,
+  result,
+  onCopy,
+  onRevise,
+  onRevisionInstructionChange,
+}: SmmResultsProps) {
   if (!result) {
     return (
       <section className="ct-empty-state p-8 text-center">
@@ -769,6 +863,42 @@ function SmmResults({ copiedKey, result, onCopy }: SmmResultsProps) {
 
   return (
     <div className="space-y-6">
+      <section className="ct-app-panel p-5">
+        <div className="flex items-start gap-3">
+          <span className="ct-accent-icon mt-0.5">
+            <PencilLine className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <label className="ct-app-label" htmlFor="smmRevisionInstruction">
+              Правки до результату
+            </label>
+            <textarea
+              className="ct-app-field min-h-28 w-full p-4 leading-6"
+              disabled={isRevisionLoading}
+              id="smmRevisionInstruction"
+              placeholder="Наприклад: зроби менш пафосно, скороти CTA, перший слайд має бути конкретнішим..."
+              value={revisionInstruction}
+              onChange={(event) => onRevisionInstructionChange(event.target.value)}
+            />
+            <div className="mt-3 flex justify-end">
+              <button
+                className="ct-primary-action"
+                disabled={!canRevise}
+                onClick={onRevise}
+                type="button"
+              >
+                {isRevisionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <PencilLine className="h-4 w-4" aria-hidden="true" />
+                )}
+                Доопрацювати
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {result.captions ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">

@@ -97,3 +97,42 @@ ${CAROUSEL_VARIANT_SCHEMA_INSTRUCTION}
 - Якщо тип news, добери природну кількість слайдів, зазвичай 5-8.`,
   ].filter(Boolean).join('\n\n');
 }
+
+export function buildSmmRevisionUserMessage(
+  params: SmmGenerateRequest,
+  format: SmmAtomicFormat,
+  currentResult: unknown,
+  instruction: string,
+) {
+  const optionalLines = [
+    params.speaker ? `Спікер: ${params.speaker}` : '',
+    params.ctaTopic ? `Тематика для CTA: ${params.ctaTopic}` : '',
+    params.codeWord ? `Кодове слово для CTA: ${params.codeWord}` : '',
+  ].filter(Boolean);
+
+  return [
+    `Тип контенту: ${CONTENT_TYPE_LABELS[params.contentType]} (${params.contentType})`,
+    `Майданчик: ${PLATFORM_LABELS[params.platform]} (${params.platform})`,
+    `Потрібний формат: ${FORMAT_LABELS[format]} (${format})`,
+    optionalLines.join('\n'),
+    `Початковий матеріал / бриф / тема:
+${params.material.trim()}`,
+    `Поточний JSON-результат, який треба доопрацювати:
+${JSON.stringify(currentResult, null, 2)}`,
+    `Правка користувача:
+${instruction.trim()}`,
+    `Завдання:
+- ДООПРАЦЮЙ поточний результат за правкою користувача, а не генеруй новий варіант з нуля.
+- Збережи всі сильні частини, які користувач прямо не просив змінювати.
+- Не вигадуй нові факти, цифри, ролі, назви продуктів або цитати, якщо їх немає в початковому матеріалі.
+- Збережи кількість варіантів і структуру відповіді для цього формату.
+- Якщо правка суперечить TOV Universe або системним правилам, адаптуй її без порушення TOV.
+
+Поверни JSON рівно за цією схемою:
+${getSmmSchemaInstruction(format)}
+
+Додаткові технічні правила:
+- Не додавай markdown, бектики або пояснення поза JSON.
+- Поверни лише валідний JSON-обʼєкт у схемі формату ${format}.`,
+  ].filter(Boolean).join('\n\n');
+}

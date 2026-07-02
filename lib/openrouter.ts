@@ -1,5 +1,5 @@
 import { SMM_SYSTEM_PROMPT } from './systemPrompt';
-import { buildSmmCarouselVariantUserMessage, buildSmmUserMessage } from './userMessage';
+import { buildSmmCarouselVariantUserMessage, buildSmmRevisionUserMessage, buildSmmUserMessage } from './userMessage';
 import {
   captionResultSchema,
   carouselResultSchema,
@@ -13,6 +13,7 @@ import {
   type SmmAtomicFormat,
   type SmmGenerateRequest,
   type SmmGenerationResult,
+  type SmmReviseRequest,
 } from './schema';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -514,6 +515,78 @@ export async function generateSmmResult(params: SmmGenerateRequest): Promise<Smm
 
   return {
     carousel: await generateCarouselResult(params),
+  };
+}
+
+async function reviseSmmContent(
+  params: SmmGenerateRequest,
+  format: SmmAtomicFormat,
+  currentResult: CaptionResult | CarouselResult,
+  instruction: string,
+): Promise<CaptionResult | CarouselResult> {
+  const baseMessages: OpenRouterMessage[] = [
+    {
+      role: 'system',
+      content: SMM_SYSTEM_PROMPT,
+    },
+    {
+      role: 'user',
+      content: buildSmmRevisionUserMessage(params, format, currentResult, instruction),
+    },
+  ];
+  const firstContent = await requestOpenRouterCompletion({
+    format,
+    messages: baseMessages,
+  });
+
+  try {
+    return parseAndValidateCompletion(firstContent, format);
+  } catch (validationError) {
+    console.warn('[revise-smm] invalid model JSON, retrying once', {
+      format,
+      error: validationError instanceof Error ? validationError.message : 'unknown validation error',
+    });
+
+    const repairedContent = await requestOpenRouterCompletion({
+      format,
+      messages: [
+        ...baseMessages,
+        {
+          role: 'assistant',
+          content: firstContent,
+        },
+        {
+          role: 'user',
+          content: buildJsonRepairPrompt(format, validationError),
+        },
+      ],
+    });
+
+    try {
+      return parseAndValidateCompletion(repairedContent, format);
+    } catch (secondValidationError) {
+      const details = secondValidationError instanceof Error
+        ? secondValidationError.message
+        : 'JSON не пройшов валідацію.';
+
+      throw new Error(`Модель двічі повернула доопрацювання не у потрібній JSON-схемі. ${details}`);
+    }
+  }
+}
+
+export async function reviseSmmResult(params: SmmReviseRequest): Promise<SmmGenerationResult> {
+  const [captions, carousel] = await Promise.all([
+    params.result.captions
+      ? reviseSmmContent(params.form, 'caption', params.result.captions, params.instruction) as Promise<CaptionResult>
+      : Promise.resolve(undefined),
+    params.result.carousel
+      ? reviseSmmContent(params.form, 'carousel', params.result.carousel, params.instruction) as Promise<CarouselResult>
+      : Promise.resolve(undefined),
+  ]);
+
+  return {
+    ...(captions ? { captions } : {}),
+    ...(carousel ? { carousel } : {}),
   };
 }
 
