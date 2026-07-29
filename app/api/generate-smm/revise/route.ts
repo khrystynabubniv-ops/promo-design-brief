@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { saveGenerationHistorySafely } from '@/lib/generationHistory';
 import { reviseSmmResult } from '@/lib/openrouter';
 import { smmReviseRequestSchema } from '@/lib/schema';
+import {
+  deriveSmmLearningRuleSafely,
+  getSmmLearningRulesSafely,
+  saveSmmLearningRuleSafely,
+} from '@/lib/smmLearning';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -102,24 +107,50 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await reviseSmmResult(parsedRequest.data);
+    const learningRules = await getSmmLearningRulesSafely({
+      form: parsedRequest.data.form,
+    });
+    const result = await reviseSmmResult(
+      parsedRequest.data,
+      learningRules.map((rule) => rule.rule),
+    );
     const durationMs = Date.now() - startedAt;
 
-    const historyItem = await saveGenerationHistorySafely({
-      durationMs,
-      input: {
-        ...parsedRequest.data.form,
-        revisionInstruction: parsedRequest.data.instruction,
-        revisedFrom: parsedRequest.data.result,
-      },
-      output: result,
-      title: deriveHistoryTitle(parsedRequest.data.form.material),
-      tool: 'smm',
-    });
+    const [historyItem, learnedRule] = await Promise.all([
+      saveGenerationHistorySafely({
+        durationMs,
+        input: {
+          ...parsedRequest.data.form,
+          revisionInstruction: parsedRequest.data.instruction,
+          revisedFrom: parsedRequest.data.result,
+        },
+        output: result,
+        title: deriveHistoryTitle(parsedRequest.data.form.material),
+        tool: 'smm',
+      }),
+      (async () => {
+        const rule = await deriveSmmLearningRuleSafely({
+          form: parsedRequest.data.form,
+          instruction: parsedRequest.data.instruction,
+        });
+
+        if (!rule) {
+          return null;
+        }
+
+        return saveSmmLearningRuleSafely({
+          form: parsedRequest.data.form,
+          instruction: parsedRequest.data.instruction,
+          rule,
+        });
+      })(),
+    ]);
 
     console.info('[revise-smm] completed', {
       durationMs,
       format: parsedRequest.data.form.format,
+      learnedRule: learnedRule?.rule ?? '',
+      learningRulesCount: learningRules.length,
       platform: parsedRequest.data.form.platform,
       contentType: parsedRequest.data.form.contentType,
     });
@@ -127,6 +158,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       durationMs,
       historyItem,
+      learnedRule,
       result,
     });
   } catch (error) {

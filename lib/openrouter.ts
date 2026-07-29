@@ -351,6 +351,7 @@ async function requestOpenRouterCompletion({ format, messages }: CompletionReque
 export async function generateSmmContent(
   params: SmmGenerateRequest,
   format: SmmAtomicFormat,
+  learningRules: string[] = [],
 ): Promise<CaptionResult | CarouselResult> {
   const baseMessages: OpenRouterMessage[] = [
     {
@@ -359,7 +360,7 @@ export async function generateSmmContent(
     },
     {
       role: 'user',
-      content: buildSmmUserMessage(params, format),
+      content: buildSmmUserMessage(params, format, learningRules),
     },
   ];
   const firstContent = await requestOpenRouterCompletion({
@@ -405,6 +406,7 @@ export async function generateSmmContent(
 async function generateCarouselVariant(
   params: SmmGenerateRequest,
   variantIndex: number,
+  learningRules: string[] = [],
 ): Promise<CarouselVariant> {
   const baseMessages: OpenRouterMessage[] = [
     {
@@ -413,7 +415,7 @@ async function generateCarouselVariant(
     },
     {
       role: 'user',
-      content: buildSmmCarouselVariantUserMessage(params, variantIndex),
+      content: buildSmmCarouselVariantUserMessage(params, variantIndex, learningRules),
     },
   ];
   const firstContent = await requestOpenRouterCompletion({
@@ -486,22 +488,28 @@ async function mapWithConcurrency<T, U>(
   return results;
 }
 
-async function generateCarouselResult(params: SmmGenerateRequest): Promise<CarouselResult> {
+async function generateCarouselResult(
+  params: SmmGenerateRequest,
+  learningRules: string[] = [],
+): Promise<CarouselResult> {
   const variantIndexes = Array.from({ length: params.variantsCount }, (_, index) => index + 1);
   const variants = await mapWithConcurrency(
     variantIndexes,
     CAROUSEL_VARIANT_CONCURRENCY,
-    (variantIndex) => generateCarouselVariant(params, variantIndex),
+    (variantIndex) => generateCarouselVariant(params, variantIndex, learningRules),
   );
 
   return { variants };
 }
 
-export async function generateSmmResult(params: SmmGenerateRequest): Promise<SmmGenerationResult> {
+export async function generateSmmResult(
+  params: SmmGenerateRequest,
+  learningRules: string[] = [],
+): Promise<SmmGenerationResult> {
   if (params.format === 'both') {
     const [captions, carousel] = await Promise.all([
-      generateSmmContent(params, 'caption') as Promise<CaptionResult>,
-      generateCarouselResult(params),
+      generateSmmContent(params, 'caption', learningRules) as Promise<CaptionResult>,
+      generateCarouselResult(params, learningRules),
     ]);
 
     return { captions, carousel };
@@ -509,12 +517,12 @@ export async function generateSmmResult(params: SmmGenerateRequest): Promise<Smm
 
   if (params.format === 'caption') {
     return {
-      captions: await generateSmmContent(params, 'caption') as CaptionResult,
+      captions: await generateSmmContent(params, 'caption', learningRules) as CaptionResult,
     };
   }
 
   return {
-    carousel: await generateCarouselResult(params),
+    carousel: await generateCarouselResult(params, learningRules),
   };
 }
 
@@ -523,6 +531,7 @@ async function reviseSmmContent(
   format: SmmAtomicFormat,
   currentResult: CaptionResult | CarouselResult,
   instruction: string,
+  learningRules: string[] = [],
 ): Promise<CaptionResult | CarouselResult> {
   const baseMessages: OpenRouterMessage[] = [
     {
@@ -531,7 +540,7 @@ async function reviseSmmContent(
     },
     {
       role: 'user',
-      content: buildSmmRevisionUserMessage(params, format, currentResult, instruction),
+      content: buildSmmRevisionUserMessage(params, format, currentResult, instruction, learningRules),
     },
   ];
   const firstContent = await requestOpenRouterCompletion({
@@ -574,13 +583,16 @@ async function reviseSmmContent(
   }
 }
 
-export async function reviseSmmResult(params: SmmReviseRequest): Promise<SmmGenerationResult> {
+export async function reviseSmmResult(
+  params: SmmReviseRequest,
+  learningRules: string[] = [],
+): Promise<SmmGenerationResult> {
   const [captions, carousel] = await Promise.all([
     params.result.captions
-      ? reviseSmmContent(params.form, 'caption', params.result.captions, params.instruction) as Promise<CaptionResult>
+      ? reviseSmmContent(params.form, 'caption', params.result.captions, params.instruction, learningRules) as Promise<CaptionResult>
       : Promise.resolve(undefined),
     params.result.carousel
-      ? reviseSmmContent(params.form, 'carousel', params.result.carousel, params.instruction) as Promise<CarouselResult>
+      ? reviseSmmContent(params.form, 'carousel', params.result.carousel, params.instruction, learningRules) as Promise<CarouselResult>
       : Promise.resolve(undefined),
   ]);
 

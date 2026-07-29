@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { getDatabaseUrl, getPool } from './database';
 import type { GenerationHistoryItem, GenerationHistoryTool } from './types';
 
 const HISTORY_RETENTION_DAYS = 30;
@@ -14,33 +15,7 @@ type SaveGenerationHistoryParams = {
   tool: GenerationHistoryTool;
 };
 
-let pool: Pool | null = null;
 let schemaReadyPromise: Promise<void> | null = null;
-
-function getDatabaseUrl() {
-  return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
-}
-
-function getPool() {
-  const databaseUrl = getDatabaseUrl();
-
-  if (!databaseUrl) {
-    return null;
-  }
-
-  if (!pool) {
-    pool = new Pool({
-      connectionString: databaseUrl,
-      ssl: databaseUrl.includes('railway.internal')
-        ? false
-        : {
-            rejectUnauthorized: false,
-          },
-    });
-  }
-
-  return pool;
-}
 
 async function ensureGenerationHistoryTable(currentPool: Pool) {
   if (!schemaReadyPromise) {

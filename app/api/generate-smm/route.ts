@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { saveGenerationHistorySafely } from '@/lib/generationHistory';
 import { generateSmmResult } from '@/lib/openrouter';
 import { smmGenerateRequestSchema } from '@/lib/schema';
+import { getSmmLearningRulesSafely } from '@/lib/smmLearning';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -100,7 +101,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await generateSmmResult(parsedRequest.data);
+    const learningRules = await getSmmLearningRulesSafely({
+      form: parsedRequest.data,
+    });
+    const result = await generateSmmResult(
+      parsedRequest.data,
+      learningRules.map((rule) => rule.rule),
+    );
     const durationMs = Date.now() - startedAt;
 
     const historyItem = await saveGenerationHistorySafely({
@@ -114,6 +121,7 @@ export async function POST(request: Request) {
     console.info('[generate-smm] completed', {
       durationMs,
       format: parsedRequest.data.format,
+      learningRulesCount: learningRules.length,
       platform: parsedRequest.data.platform,
       contentType: parsedRequest.data.contentType,
     });

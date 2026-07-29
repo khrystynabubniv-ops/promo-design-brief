@@ -37,13 +37,37 @@ ${example.text.trim()}`)
   .join('\n\n')}`;
 }
 
-export function buildSmmUserMessage(params: SmmGenerateRequest, format: SmmAtomicFormat) {
+function buildLearningRulesSection(learningRules: string[] = []) {
+  const normalizedRules = learningRules
+    .map((rule) => rule.trim())
+    .filter(Boolean);
+
+  if (!normalizedRules.length) {
+    return '';
+  }
+
+  return `Редакторська памʼять з попередніх правок:
+${normalizedRules.map((rule, index) => `${index + 1}. ${rule}`).join('\n')}
+
+Як використовувати памʼять:
+- Враховуй ці правила як стилістичні та структурні вподобання редактора.
+- Не копіюй із них факти, імена, назви компаній, продуктів або теми минулих постів.
+- Якщо правило не релевантне цьому матеріалу, не натягуй його штучно.
+- Системний TOV Universe і конкретний матеріал завжди важливіші за памʼять.`;
+}
+
+export function buildSmmUserMessage(
+  params: SmmGenerateRequest,
+  format: SmmAtomicFormat,
+  learningRules: string[] = [],
+) {
   const optionalLines = [
     params.speaker ? `Спікер: ${params.speaker}` : '',
     params.ctaTopic ? `Тематика для CTA: ${params.ctaTopic}` : '',
     params.codeWord ? `Кодове слово для CTA: ${params.codeWord}` : '',
   ].filter(Boolean);
   const examplesSection = buildReferenceExamplesSection(params.contentType);
+  const learningRulesSection = buildLearningRulesSection(learningRules);
 
   return [
     `Тип контенту: ${CONTENT_TYPE_LABELS[params.contentType]} (${params.contentType})`,
@@ -53,6 +77,7 @@ export function buildSmmUserMessage(params: SmmGenerateRequest, format: SmmAtomi
     optionalLines.join('\n'),
     `Матеріал / бриф / тема:
 ${params.material.trim()}`,
+    learningRulesSection,
     examplesSection,
     `Поверни JSON рівно за цією схемою:
 ${getSmmSchemaInstruction(format)}
@@ -67,13 +92,18 @@ ${getSmmSchemaInstruction(format)}
   ].filter(Boolean).join('\n\n');
 }
 
-export function buildSmmCarouselVariantUserMessage(params: SmmGenerateRequest, variantIndex: number) {
+export function buildSmmCarouselVariantUserMessage(
+  params: SmmGenerateRequest,
+  variantIndex: number,
+  learningRules: string[] = [],
+) {
   const optionalLines = [
     params.speaker ? `Спікер: ${params.speaker}` : '',
     params.ctaTopic ? `Тематика для CTA: ${params.ctaTopic}` : '',
     params.codeWord ? `Кодове слово для CTA: ${params.codeWord}` : '',
   ].filter(Boolean);
   const examplesSection = buildReferenceExamplesSection(params.contentType);
+  const learningRulesSection = buildLearningRulesSection(learningRules);
 
   return [
     `Тип контенту: ${CONTENT_TYPE_LABELS[params.contentType]} (${params.contentType})`,
@@ -83,6 +113,7 @@ export function buildSmmCarouselVariantUserMessage(params: SmmGenerateRequest, v
     optionalLines.join('\n'),
     `Матеріал / бриф / тема:
 ${params.material.trim()}`,
+    learningRulesSection,
     examplesSection,
     `Поверни JSON рівно за цією схемою:
 ${CAROUSEL_VARIANT_SCHEMA_INSTRUCTION}
@@ -103,12 +134,14 @@ export function buildSmmRevisionUserMessage(
   format: SmmAtomicFormat,
   currentResult: unknown,
   instruction: string,
+  learningRules: string[] = [],
 ) {
   const optionalLines = [
     params.speaker ? `Спікер: ${params.speaker}` : '',
     params.ctaTopic ? `Тематика для CTA: ${params.ctaTopic}` : '',
     params.codeWord ? `Кодове слово для CTA: ${params.codeWord}` : '',
   ].filter(Boolean);
+  const learningRulesSection = buildLearningRulesSection(learningRules);
 
   return [
     `Тип контенту: ${CONTENT_TYPE_LABELS[params.contentType]} (${params.contentType})`,
@@ -117,6 +150,7 @@ export function buildSmmRevisionUserMessage(
     optionalLines.join('\n'),
     `Початковий матеріал / бриф / тема:
 ${params.material.trim()}`,
+    learningRulesSection,
     `Поточний JSON-результат, який треба доопрацювати:
 ${JSON.stringify(currentResult, null, 2)}`,
     `Правка користувача:
