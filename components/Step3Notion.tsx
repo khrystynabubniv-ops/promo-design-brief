@@ -155,21 +155,35 @@ export function Step3Notion({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="ct-app-label" htmlFor="platform">
-                Platform
-              </label>
-              <select
-                className="ct-app-field h-11 w-full px-3"
-                id="platform"
-                value={form.platform}
-                onChange={(event) => onFormChange({ platform: event.target.value })}
-              >
-                {PLATFORMS.map((platform) => (
-                  <option key={platform} value={platform}>
-                    {platform}
-                  </option>
-                ))}
-              </select>
+              <fieldset>
+                <legend className="ct-app-label">Platform</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLATFORMS.map((platform) => {
+                    const selected = form.platform.includes(platform);
+
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className={[
+                          'ct-choice-card min-h-11 px-3 py-2 text-left text-sm font-bold',
+                          selected ? 'ct-choice-card-active' : '',
+                        ].join(' ')}
+                        key={platform}
+                        onClick={() =>
+                          onFormChange({
+                            platform: selected
+                              ? form.platform.filter((value) => value !== platform)
+                              : [...form.platform, platform],
+                          })
+                        }
+                        type="button"
+                      >
+                        {platform}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
             </div>
 
             <div>

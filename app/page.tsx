@@ -43,7 +43,7 @@ const initialNotionForm: NotionTaskForm = {
   name: '',
   deadline: '',
   priority: 'Planned',
-  platform: 'Meta',
+  platform: ['Meta'],
   format: 'Static Image',
   taskTypeId: '',
 };

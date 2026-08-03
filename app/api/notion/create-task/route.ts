@@ -181,6 +181,14 @@ async function appendFullBriefToPage(pageId: string, brief: string, headers: Not
   return blocks.length;
 }
 
+function normalizePlatforms(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+
+  return values
+    .filter((platform): platform is string => typeof platform === 'string' && platform.trim().length > 0)
+    .map((platform) => platform.trim());
+}
+
 function normalizeFormat(value: unknown) {
   if (Array.isArray(value)) {
     return value.find(
@@ -286,7 +294,13 @@ function buildTaskProperties({
       people: [{ object: 'user', id: OWNER_ID }],
     },
     Deadline: { date: { start: body.deadline } },
-    ...(body.platform ? { Platform: { select: { name: body.platform } } } : {}),
+    ...(() => {
+      const platforms = normalizePlatforms(body.platform);
+
+      return platforms.length
+        ? { Platform: { multi_select: platforms.map((name) => ({ name })) } }
+        : {};
+    })(),
     ...(formatProperty ? { [FORMAT_PROPERTY_NAME]: formatProperty } : {}),
     ...(parentTaskId
       ? {
